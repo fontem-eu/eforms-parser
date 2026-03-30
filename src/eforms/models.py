@@ -1,0 +1,71 @@
+"""Dataclasses representing parsed eForms notice structures."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Organization:
+    """A party (buyer, contractor, etc.) referenced within a notice."""
+
+    org_id: str
+    name: str
+    country: str | None = None
+    legal_id: str | None = None
+    address: str | None = None
+
+
+@dataclass
+class Lot:
+    """A single lot within a procurement procedure."""
+
+    lot_id: str
+    title: str | None = None
+    cpv: str | None = None
+    estimated_value: float | None = None
+    currency: str | None = None
+
+
+@dataclass
+class Award:
+    """A lot-level award result linking a lot to a winning contractor."""
+
+    lot_id: str
+    contractor_org_id: str
+    value: float | None = None
+    currency: str | None = None
+    award_date: str | None = None
+
+
+@dataclass
+class Notice:
+    """A fully parsed eForms notice with resolved org references."""
+
+    notice_id: str
+    publication_number: str | None = None
+    notice_type: str | None = None
+    title: str | None = None
+    description: str | None = None
+    cpv_main: str | None = None
+    procedure_type: str | None = None
+    issue_date: str | None = None
+    buyer_org_id: str | None = None
+    total_value: float | None = None
+    currency: str | None = None
+    organizations: dict[str, Organization] = field(default_factory=dict)
+    lots: list[Lot] = field(default_factory=list)
+    awards: list[Award] = field(default_factory=list)
+
+    def buyer(self) -> Organization | None:
+        """Return the buying authority, or None if not resolvable."""
+        if self.buyer_org_id and self.buyer_org_id in self.organizations:
+            return self.organizations[self.buyer_org_id]
+        return None
+
+    def contractors(self) -> list[Organization]:
+        """Return all winning contractors across all awards."""
+        return [
+            self.organizations[a.contractor_org_id]
+            for a in self.awards
+            if a.contractor_org_id in self.organizations
+        ]
