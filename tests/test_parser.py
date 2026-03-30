@@ -61,19 +61,28 @@ MINIMAL_CAN = b"""<?xml version="1.0" encoding="UTF-8"?>
       </efac:Organizations>
       <efac:NoticeResult>
         <cbc:TotalAmount currencyID="EUR">12500000</cbc:TotalAmount>
-        <efac:LotTender>
-          <cbc:ID>TEN-0001</cbc:ID>
-          <efac:TenderingParty>
-            <efac:Tenderer>
-              <cbc:ID schemeName="organization">ORG-WINNER</cbc:ID>
-            </efac:Tenderer>
-          </efac:TenderingParty>
-        </efac:LotTender>
         <efac:LotResult>
           <efac:TenderLot><cbc:ID>LOT-0001</cbc:ID></efac:TenderLot>
           <efac:LotTender><cbc:ID>TEN-0001</cbc:ID></efac:LotTender>
-          <cbc:AwardDate>2024-06-01</cbc:AwardDate>
+          <efac:SettledContract><cbc:ID>CON-0001</cbc:ID></efac:SettledContract>
         </efac:LotResult>
+        <efac:LotTender>
+          <cbc:ID>TEN-0001</cbc:ID>
+          <cac:LegalMonetaryTotal>
+            <cbc:PayableAmount currencyID="EUR">12500000</cbc:PayableAmount>
+          </cac:LegalMonetaryTotal>
+          <efac:TenderingParty><cbc:ID>TPA-0001</cbc:ID></efac:TenderingParty>
+        </efac:LotTender>
+        <efac:SettledContract>
+          <cbc:ID>CON-0001</cbc:ID>
+          <cbc:AwardDate>2024-06-01</cbc:AwardDate>
+        </efac:SettledContract>
+        <efac:TenderingParty>
+          <cbc:ID>TPA-0001</cbc:ID>
+          <efac:Tenderer>
+            <cbc:ID schemeName="organization">ORG-WINNER</cbc:ID>
+          </efac:Tenderer>
+        </efac:TenderingParty>
       </efac:NoticeResult>
     </efext:EformsExtension>
   </ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions>
@@ -122,12 +131,14 @@ def test_parse_contractors():
 
 
 def test_parse_awards():
-    """Awards link lots to contractors."""
+    """Awards link lots to contractors with value and date."""
     notice = parse(MINIMAL_CAN)
     assert len(notice.awards) == 1
     award = notice.awards[0]
     assert award.lot_id == "LOT-0001"
     assert award.contractor_org_id == "ORG-WINNER"
+    assert award.value == 12500000.0
+    assert award.currency == "EUR"
     assert award.award_date == "2024-06-01"
 
 

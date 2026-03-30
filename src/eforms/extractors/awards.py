@@ -29,67 +29,104 @@ def extract_total_value(root: etree._Element) -> tuple[float | None, str | None]
 
 
 def extract_awards(root: etree._Element) -> list[Award]:
-    """Extract per-lot award results."""
+    """Extract per-lot award results.
+
+    Real eForms structure (indirection chain):
+      TenderingParty (TPA-0001) → Tenderer → org ID (ORG-0002)
+      LotTender (TEN-0001) → TenderingParty ref (TPA-0001), has value
+      SettledContract (CON-0001) → has AwardDate
+      LotResult → refs LotTender, TenderLot, SettledContract
+    """
     result_el = root.find(_RESULT_PATH, NS)
     if result_el is None:
         return []
 
-    # Build tender_id → contractor org_id mapping
-    tender_to_contractor: dict[str, str] = {}
-    for tender in result_el.findall("efac:LotTender", NS):
-        tender_id_el = tender.find("cbc:ID", NS)
-        if tender_id_el is None or not tender_id_el.text:
+    # Step 1: Build TenderingParty ID → org ID mapping
+    tpa_to_org: dict[str, str] = {}
+    for tpa in result_el.findall("efac:TenderingParty", NS):
+        tpa_id_el = tpa.find("cbc:ID", NS)
+        if tpa_id_el is None or not tpa_id_el.text:
             continue
-        tid = tender_id_el.text.strip()
-        for tp in tender.findall("efac:TenderingParty", NS):
-            for tenderer in tp.findall("efac:Tenderer", NS):
-                org_el = tenderer.find(
-                    "cbc:ID[@schemeName='organization']", NS
-                )
-                if org_el is not None and org_el.text:
-                    tender_to_contractor[tid] = org_el.text.strip()
+        tpa_id = tpa_id_el.text.strip()
+        tenderer = tpa.find("efac:Tenderer/cbc:ID", NS)
+        if tenderer is not None and tenderer.text:
+            tpa_to_org[tpa_id] = tenderer.text.strip()
 
-    # Build lot results
+    # Step 2: Build LotTender ID → (TenderingParty ref, value, currency)
+    tender_info: dict[str, dict] = {}
+    for lt in result_el.findall("efac:LotTender", NS):
+        lt_id_el = lt.find("cbc:ID", NS)
+        if lt_id_el is None or not lt_id_el.text:
+            continue
+        lt_id = lt_id_el.text.strip()
+
+        tpa_ref_el = lt.find("efac:TenderingParty/cbc:ID", NS)
+        tpa_ref = (
+            tpa_ref_el.text.strip()
+            if tpa_ref_el is not None and tpa_ref_el.text
+            else None
+        )
+
+        value = None
+        currency = None
+        val_el = lt.find("cac:LegalMonetaryTotal/cbc:PayableAmount", NS)
+        if val_el is not None and val_el.text:
+            try:
+                value = float(val_el.text.strip())
+            except ValueError:
+                pass
+            currency = val_el.get("currencyID")
+
+        tender_info[lt_id] = {
+            "tpa_ref": tpa_ref,
+            "value": value,
+            "currency": currency,
+        }
+
+    # Step 3: Build SettledContract ID → award date
+    contract_dates: dict[str, str] = {}
+    for sc in result_el.findall("efac:SettledContract", NS):
+        sc_id_el = sc.find("cbc:ID", NS)
+        if sc_id_el is None or not sc_id_el.text:
+            continue
+        sc_id = sc_id_el.text.strip()
+        date_el = sc.find("cbc:AwardDate", NS)
+        if date_el is not None and date_el.text:
+            contract_dates[sc_id] = date_el.text.strip()
+
+    # Step 4: Assemble awards from LotResult
     awards: list[Award] = []
-    for lot_result in result_el.findall("efac:LotResult", NS):
-        lot_id_el = lot_result.find(
-            "efac:TenderLot/cbc:ID", NS
-        )
-        tender_id_el = lot_result.find(
-            "efac:LotTender/cbc:ID", NS
-        )
-        if lot_id_el is None or tender_id_el is None:
+    for lr in result_el.findall("efac:LotResult", NS):
+        lot_id_el = lr.find("efac:TenderLot/cbc:ID", NS)
+        tender_ref_el = lr.find("efac:LotTender/cbc:ID", NS)
+        contract_ref_el = lr.find("efac:SettledContract/cbc:ID", NS)
+
+        if lot_id_el is None or tender_ref_el is None:
             continue
 
         lot_id = lot_id_el.text.strip() if lot_id_el.text else ""
-        tender_id = tender_id_el.text.strip() if tender_id_el.text else ""
-        contractor_org_id = tender_to_contractor.get(tender_id, "")
+        tender_id = tender_ref_el.text.strip() if tender_ref_el.text else ""
 
-        # Award value
-        value = None
-        currency = None
-        settled = lot_result.find("efac:SettledContract", NS)
-        if settled is not None:
-            val_el = settled.find(
-                "cac:LegalMonetaryTotal/cbc:PayableAmount", NS
-            )
-            if val_el is not None and val_el.text:
-                try:
-                    value = float(val_el.text.strip())
-                except ValueError:
-                    pass
-                currency = val_el.get("currencyID")
+        # Resolve: LotTender → TenderingParty → Org
+        info = tender_info.get(tender_id, {})
+        tpa_ref = info.get("tpa_ref", "")
+        org_id = tpa_to_org.get(tpa_ref, "")
 
-        # Award date
+        # Value from LotTender
+        value = info.get("value")
+        currency = info.get("currency")
+
+        # Award date from SettledContract
         award_date = None
-        date_el = lot_result.find("cbc:AwardDate", NS)
-        if date_el is not None and date_el.text:
-            award_date = date_el.text.strip()
+        if contract_ref_el is not None and contract_ref_el.text:
+            award_date = contract_dates.get(
+                contract_ref_el.text.strip()
+            )
 
-        if contractor_org_id:
+        if org_id:
             awards.append(Award(
                 lot_id=lot_id,
-                contractor_org_id=contractor_org_id,
+                contractor_org_id=org_id,
                 value=value,
                 currency=currency,
                 award_date=award_date,
