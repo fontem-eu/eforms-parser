@@ -1,0 +1,4 @@
+[run]
+omit =
+    src/eforms/cli.py
+    src/eforms/stream.py
