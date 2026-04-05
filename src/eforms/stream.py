@@ -20,6 +20,8 @@ from .parser import parse
 
 logger = logging.getLogger(__name__)
 
+_PARSE_ERROR_MSG = "Failed to parse %s: %s"
+
 
 def stream_notices(archive_path: str | Path) -> Iterator[Notice]:
     """Open a TED archive and yield parsed Notices.
@@ -50,7 +52,7 @@ def stream_xml_dir(directory: str | Path) -> Iterator[Notice]:
         try:
             yield parse(path.read_bytes())
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            logger.warning("Failed to parse %s: %s", path.name, exc)
+            logger.warning(_PARSE_ERROR_MSG, path.name, exc)
 
 
 def _stream_tar(path: Path) -> Iterator[Notice]:
@@ -65,9 +67,7 @@ def _stream_tar(path: Path) -> Iterator[Notice]:
                         continue
                     yield parse(f.read())
                 except Exception as exc:  # pylint: disable=broad-exception-caught
-                    logger.warning(
-                        "Failed to parse %s: %s", member.name, exc
-                    )
+                    logger.warning(_PARSE_ERROR_MSG, member.name, exc)
             elif member.name.endswith((".tar.gz", ".tgz")):
                 # Monthly package: nested daily tar.gz files
                 logger.info("Opening nested daily package: %s", member.name)
@@ -109,4 +109,4 @@ def _stream_zip(path: Path) -> Iterator[Notice]:
             try:
                 yield parse(zf.read(name))
             except Exception as exc:  # pylint: disable=broad-exception-caught
-                logger.warning("Failed to parse %s: %s", name, exc)
+                logger.warning(_PARSE_ERROR_MSG, name, exc)

@@ -6,6 +6,8 @@ from lxml import etree
 from ..models import Award
 from ..namespaces import NS
 
+_CBC_ID = "cbc:ID"
+
 _RESULT_PATH = (
     ".//ext:UBLExtensions/ext:UBLExtension/ext:ExtensionContent/"
     "efext:EformsExtension/efac:NoticeResult"
@@ -44,7 +46,7 @@ def extract_awards(root: etree._Element) -> list[Award]:
     # Step 1: Build TenderingParty ID → org ID mapping
     tpa_to_org: dict[str, str] = {}
     for tpa in result_el.findall("efac:TenderingParty", NS):
-        tpa_id_el = tpa.find("cbc:ID", NS)
+        tpa_id_el = tpa.find(_CBC_ID, NS)
         if tpa_id_el is None or not tpa_id_el.text:
             continue
         tpa_id = tpa_id_el.text.strip()
@@ -55,7 +57,7 @@ def extract_awards(root: etree._Element) -> list[Award]:
     # Step 2: Build LotTender ID → (TenderingParty ref, value, currency)
     tender_info: dict[str, dict] = {}
     for lt in result_el.findall("efac:LotTender", NS):
-        lt_id_el = lt.find("cbc:ID", NS)
+        lt_id_el = lt.find(_CBC_ID, NS)
         if lt_id_el is None or not lt_id_el.text:
             continue
         lt_id = lt_id_el.text.strip()
@@ -86,7 +88,7 @@ def extract_awards(root: etree._Element) -> list[Award]:
     # Step 3: Build SettledContract ID → award date
     contract_dates: dict[str, str] = {}
     for sc in result_el.findall("efac:SettledContract", NS):
-        sc_id_el = sc.find("cbc:ID", NS)
+        sc_id_el = sc.find(_CBC_ID, NS)
         if sc_id_el is None or not sc_id_el.text:
             continue
         sc_id = sc_id_el.text.strip()
