@@ -6,6 +6,7 @@ from lxml import etree
 from .extractors.awards import extract_awards, extract_total_value
 from .extractors.lots import extract_lots
 from .extractors.notice_metadata import (
+    extract_dispatch_date,
     extract_issue_date,
     extract_notice_id,
     extract_notice_type,
@@ -44,6 +45,7 @@ def parse(xml_bytes: bytes) -> Notice:
         cpv_main=extract_cpv_main(root),
         procedure_type=extract_procedure_type(root),
         issue_date=extract_issue_date(root),
+        dispatch_date=extract_dispatch_date(root),
         buyer_org_id=buyer_org_id,
         total_value=total_value,
         currency=currency,

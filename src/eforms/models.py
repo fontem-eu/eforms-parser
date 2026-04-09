@@ -35,6 +35,7 @@ class Award:
     value: float | None = None
     currency: str | None = None
     award_date: str | None = None
+    conclusion_date: str | None = None  # contract signing/conclusion date
 
 
 @dataclass
@@ -49,6 +50,7 @@ class Notice:
     cpv_main: str | None = None
     procedure_type: str | None = None
     issue_date: str | None = None
+    dispatch_date: str | None = None  # when notice was sent to TED
     buyer_org_id: str | None = None
     total_value: float | None = None
     currency: str | None = None

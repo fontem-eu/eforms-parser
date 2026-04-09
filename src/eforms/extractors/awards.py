@@ -5,6 +5,7 @@ from lxml import etree
 
 from ..models import Award
 from ..namespaces import NS
+from .notice_metadata import _clean_date
 
 _CBC_ID = "cbc:ID"
 
@@ -85,8 +86,9 @@ def extract_awards(root: etree._Element) -> list[Award]:
             "currency": currency,
         }
 
-    # Step 3: Build SettledContract ID → award date
+    # Step 3: Build SettledContract ID → (award date, conclusion date)
     contract_dates: dict[str, str] = {}
+    contract_conclusion: dict[str, str] = {}
     for sc in result_el.findall("efac:SettledContract", NS):
         sc_id_el = sc.find(_CBC_ID, NS)
         if sc_id_el is None or not sc_id_el.text:
@@ -94,7 +96,15 @@ def extract_awards(root: etree._Element) -> list[Award]:
         sc_id = sc_id_el.text.strip()
         date_el = sc.find("cbc:AwardDate", NS)
         if date_el is not None and date_el.text:
-            contract_dates[sc_id] = date_el.text.strip()
+            cleaned = _clean_date(date_el.text.strip())
+            if cleaned:
+                contract_dates[sc_id] = cleaned
+        # Contract conclusion/signing date (IssueDate on SettledContract)
+        issue_el = sc.find("cbc:IssueDate", NS)
+        if issue_el is not None and issue_el.text:
+            cleaned = _clean_date(issue_el.text.strip())
+            if cleaned:
+                contract_conclusion[sc_id] = cleaned
 
     # Step 4: Assemble awards from LotResult
     awards: list[Award] = []
@@ -118,12 +128,13 @@ def extract_awards(root: etree._Element) -> list[Award]:
         value = info.get("value")
         currency = info.get("currency")
 
-        # Award date from SettledContract
+        # Award date + conclusion date from SettledContract
         award_date = None
+        conclusion_date = None
         if contract_ref_el is not None and contract_ref_el.text:
-            award_date = contract_dates.get(
-                contract_ref_el.text.strip()
-            )
+            sc_ref = contract_ref_el.text.strip()
+            award_date = contract_dates.get(sc_ref)
+            conclusion_date = contract_conclusion.get(sc_ref)
 
         if org_id:
             awards.append(Award(
@@ -132,6 +143,7 @@ def extract_awards(root: etree._Element) -> list[Award]:
                 value=value,
                 currency=currency,
                 award_date=award_date,
+                conclusion_date=conclusion_date,
             ))
 
     return awards
