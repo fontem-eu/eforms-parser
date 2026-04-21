@@ -51,7 +51,7 @@ MINIMAL_CAN = b"""<?xml version="1.0" encoding="UTF-8"?>
           <efac:Company>
             <cac:PartyIdentification><cbc:ID>ORG-WINNER</cbc:ID></cac:PartyIdentification>
             <cac:PartyName><cbc:Name>SAP SE</cbc:Name></cac:PartyName>
-            <cac:PartyLegalEntity><cbc:CompanyID>DE143293625</cbc:CompanyID></cac:PartyLegalEntity>
+            <cac:PartyLegalEntity><cbc:CompanyID schemeName="VAT">DE143293625</cbc:CompanyID></cac:PartyLegalEntity>
             <cac:PostalAddress>
               <cbc:CityName>Walldorf</cbc:CityName>
               <cac:Country><cbc:IdentificationCode>DE</cbc:IdentificationCode></cac:Country>
@@ -109,8 +109,43 @@ def test_parse_organizations():
     notice = parse(MINIMAL_CAN)
     assert len(notice.organizations) == 2
     assert notice.organizations["ORG-BUYER"].name == "Bundesministerium des Innern"
-    assert notice.organizations["ORG-WINNER"].legal_id == "DE143293625"
+    lid = notice.organizations["ORG-WINNER"].legal_id
+    assert lid is not None
+    assert lid.value == "DE143293625"
+    # schemeName preserved from the XML attribute
+    assert lid.scheme_name == "VAT"
     assert notice.organizations["ORG-WINNER"].country == "DE"
+
+
+def test_parse_legal_id_without_scheme_name():
+    """When `cbc:CompanyID` has no @schemeName attribute, scheme_name is None
+    but value is still extracted faithfully."""
+    from eforms.extractors.organizations import extract_organizations
+    from eforms.namespaces import NS
+    from lxml import etree
+
+    ns_decl = " ".join(f'xmlns:{p}="{u}"' for p, u in NS.items())
+    xml = f"""<?xml version="1.0"?>
+    <Root {ns_decl}>
+      <ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent>
+        <efext:EformsExtension>
+          <efac:Organizations>
+            <efac:Organization>
+              <efac:Company>
+                <cac:PartyIdentification><cbc:ID>ORG-X</cbc:ID></cac:PartyIdentification>
+                <cac:PartyName><cbc:Name>Bare ID Co</cbc:Name></cac:PartyName>
+                <cac:PartyLegalEntity><cbc:CompanyID>12345</cbc:CompanyID></cac:PartyLegalEntity>
+              </efac:Company>
+            </efac:Organization>
+          </efac:Organizations>
+        </efext:EformsExtension>
+      </ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions>
+    </Root>"""
+    orgs = extract_organizations(etree.fromstring(xml.encode()))
+    lid = orgs["ORG-X"].legal_id
+    assert lid is not None
+    assert lid.value == "12345"
+    assert lid.scheme_name is None
 
 
 def test_parse_buyer():
@@ -127,7 +162,8 @@ def test_parse_contractors():
     contractors = notice.contractors()
     assert len(contractors) == 1
     assert contractors[0].name == "SAP SE"
-    assert contractors[0].legal_id == "DE143293625"
+    assert contractors[0].legal_id is not None
+    assert contractors[0].legal_id.value == "DE143293625"
 
 
 def test_parse_awards():

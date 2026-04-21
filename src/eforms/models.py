@@ -5,13 +5,27 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class LegalIdentifier:
+    """Verbatim content of an eForms `cbc:CompanyID` element.
+
+    The XML may carry a `@schemeName` attribute that labels what the value
+    IS (e.g. "VAT", "national", "EORI", or a publisher-defined string).
+    We preserve both fields exactly as they appear in the source. No
+    validation, no interpretation — consumers decide what to do with it.
+    """
+
+    value: str
+    scheme_name: str | None = None
+
+
+@dataclass
 class Organization:
     """A party (buyer, contractor, etc.) referenced within a notice."""
 
     org_id: str
     name: str
     country: str | None = None
-    legal_id: str | None = None
+    legal_id: LegalIdentifier | None = None
     address: str | None = None
 
 

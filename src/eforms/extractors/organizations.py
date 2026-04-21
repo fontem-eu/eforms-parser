@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from lxml import etree
 
-from ..models import Organization
+from ..models import LegalIdentifier, Organization
 from ..namespaces import NS
 
 _ORG_PATH = (
@@ -39,14 +39,19 @@ def extract_organizations(
             else None
         )
 
+        # Preserve both the text content and the `@schemeName` attribute
+        # (which may label the value as "VAT", "national", "EORI", etc.).
+        # Consumers route on scheme_name; we don't interpret it here.
         legal_id_el = company.find(
             "cac:PartyLegalEntity/cbc:CompanyID", NS
         )
-        legal_id = (
-            legal_id_el.text.strip()
-            if legal_id_el is not None and legal_id_el.text
-            else None
-        )
+        if legal_id_el is not None and legal_id_el.text:
+            legal_id: LegalIdentifier | None = LegalIdentifier(
+                value=legal_id_el.text.strip(),
+                scheme_name=legal_id_el.get("schemeName"),
+            )
+        else:
+            legal_id = None
 
         address_parts = []
         for tag in ("cbc:StreetName", "cbc:CityName", "cbc:PostalZone"):
