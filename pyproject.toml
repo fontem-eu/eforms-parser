@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = ["lxml>=5.0.2"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pylint>=3.2.0"]
+dev = ["pytest>=8.0", "pylint>=3.2.1"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
