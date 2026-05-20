@@ -41,8 +41,14 @@ jobs:
           pip install --no-cache-dir --no-build-isolation -e '.[dev]'
           pip install --no-cache-dir pytest-cov cyclonedx-bom
           python3 -m pytest tests/ -q --cov=src --cov-report=xml:coverage.xml || true
-      - name: SonarQube scan
-        run: npx sonarqube-scanner -Dsonar.host.url=http://sonarqube.sonarqube.svc.cluster.local:9000 -Dsonar.token=${{ secrets.SONAR_TOKEN }}
+      - uses: actions/checkout@v4
+        with:
+          repository: void42/fontem-ci
+          path: .fontem-ci
+          token: ${{ secrets.GMR_CI_READ_TOKEN }}
+      - uses: ./.fontem-ci/actions/sonar-scan
+        with:
+          sonar-token: ${{ secrets.SONAR_TOKEN }}
       - name: Generate SBOM (resolved versions from installed env)
         # Library — no Docker image, no Dependency-Track project to
         # track CVEs against (it'd duplicate findings from any
