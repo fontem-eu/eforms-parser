@@ -16,6 +16,11 @@ def extract_organizations(
     root: etree._Element,
 ) -> dict[str, Organization]:
     """Parse all organizations and return a dict keyed by org ID."""
+    # pylint: disable=too-many-locals
+    # Organization extraction reads ~15 optional UBL/EFAC subfields
+    # (id, name, address parts, legal id + scheme, contact); the
+    # locals correspond 1-to-1 to schema fields, splitting them off
+    # buys no clarity.
     result: dict[str, Organization] = {}
     for org_el in root.findall(_ORG_PATH, NS):
         company = org_el.find("efac:Company", NS)

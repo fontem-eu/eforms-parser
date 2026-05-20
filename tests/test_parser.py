@@ -1,4 +1,8 @@
 """Tests for the main parser entry point using minimal XML fixtures."""
+from lxml import etree
+
+from eforms.extractors.organizations import extract_organizations
+from eforms.namespaces import NS
 from eforms.parser import parse
 
 # Minimal Contract Award Notice XML — exercises all extractors
@@ -120,10 +124,6 @@ def test_parse_organizations():
 def test_parse_legal_id_without_scheme_name():
     """When `cbc:CompanyID` has no @schemeName attribute, scheme_name is None
     but value is still extracted faithfully."""
-    from eforms.extractors.organizations import extract_organizations
-    from eforms.namespaces import NS
-    from lxml import etree
-
     ns_decl = " ".join(f'xmlns:{p}="{u}"' for p, u in NS.items())
     xml = f"""<?xml version="1.0"?>
     <Root {ns_decl}>
@@ -188,5 +188,5 @@ def test_parse_empty_xml():
     notice = parse(xml)
     assert notice.notice_id == "empty"
     assert notice.title is None
-    assert notice.organizations == {}
-    assert notice.awards == []
+    assert not notice.organizations
+    assert not notice.awards

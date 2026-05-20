@@ -31,6 +31,12 @@ def extract_total_value(root: etree._Element) -> tuple[float | None, str | None]
     return value, currency
 
 
+# pylint: disable=too-many-locals,too-many-branches,too-many-statements
+# The eForms award extraction walks a 4-step indirection chain
+# (TenderingParty → LotTender → SettledContract → LotResult) and the
+# locals/branches needed to bridge those XPath joins are intrinsic to
+# the schema. Splitting it produces helpers that take 6+ context
+# args and obscure the single linear extraction pass.
 def extract_awards(root: etree._Element) -> list[Award]:
     """Extract per-lot award results.
 

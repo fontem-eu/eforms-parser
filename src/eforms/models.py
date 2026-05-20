@@ -53,8 +53,14 @@ class Award:
 
 
 @dataclass
-class Notice:
-    """A fully parsed eForms notice with resolved org references."""
+class Notice:  # pylint: disable=too-many-instance-attributes
+    """A fully parsed eForms notice with resolved org references.
+
+    The 15 fields mirror the eForms top-level notice schema 1:1 —
+    every field is a distinct semantic UBL element, not a candidate
+    for grouping. Splitting would force callers to learn an artificial
+    intermediate object hierarchy.
+    """
 
     notice_id: str
     publication_number: str | None = None

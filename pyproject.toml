@@ -17,3 +17,29 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# Pylint config — disable rules that don't fit this internal service:
+#   missing-{module,class,function}-docstring (C0114/5/6) — the package
+#     ships as a typed parser, the type hints + symbol names are the
+#     documentation; doc-stubs would just create lint-debt with no
+#     reader value.
+#   too-few-public-methods (R0903) — frozen dataclasses for parsed
+#     XML records legitimately have no methods.
+#   duplicate-code (R0801) — pylint's similarity detector flags
+#     repeated namespace declarations + fixture XML across tests,
+#     which is intrinsic to the domain.
+#   c-extension-no-member — lxml.etree is a C extension; pylint can't
+#     introspect it. Add it to the allow-list so the introspection
+#     runs and produces meaningful (rather than false-positive)
+#     results.
+[tool.pylint.main]
+extension-pkg-allow-list = ["lxml.etree"]
+
+[tool.pylint."messages control"]
+disable = [
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "too-few-public-methods",
+    "duplicate-code",
+]

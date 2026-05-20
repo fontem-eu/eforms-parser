@@ -24,7 +24,7 @@ jobs:
           python3 -m pytest tests/ -q \
             --cov=src --cov-report=xml:coverage.xml --junitxml=test-results.xml
       - name: Lint
-        run: python3 -m pylint src tests --output-format=parseable --reports=no 2>&1 | tail -1 || true
+        run: python3 -m pylint src/eforms tests
 
   analyze:
     needs: test
