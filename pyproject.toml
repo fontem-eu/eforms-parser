@@ -7,7 +7,7 @@ name = "eforms-parser"
 version = "0.2.0"
 description = "Streaming parser for EU eForms procurement XML (TED/OJ S)"
 requires-python = ">=3.11"
-dependencies = ["lxml>=6.0.1"]
+dependencies = ["lxml>=6.0.2"]
 
 [project.optional-dependencies]
 dev = ["pytest>=9.0.3", "pylint>=4.0.5"]
