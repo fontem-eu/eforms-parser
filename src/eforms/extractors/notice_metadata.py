@@ -37,7 +37,7 @@ def _clean_date(raw: str) -> str | None:
     # Strip timezone like '+02:00' or 'Z'
     d = raw[:10]
     # Reject sentinel dates (TED uses 2000-01-01 for 'unknown')
-    if d.startswith("2000-01-01") or d.startswith("1900-01-01"):
+    if d.startswith(("2000-01-01", "1900-01-01")):
         return None
     return d
 

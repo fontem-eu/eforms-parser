@@ -31,6 +31,30 @@ def extract_total_value(root: etree._Element) -> tuple[float | None, str | None]
     return value, currency
 
 
+def extract_lot_tender_counts(root: etree._Element) -> dict[str, int]:
+    """lot_id -> number of tenders received, from each LotResult's
+    ReceivedSubmissionsStatistics (the 'tenders' total). Drives the
+    single-bidder indicator."""
+    counts: dict[str, int] = {}
+    result_el = root.find(_RESULT_PATH, NS)
+    if result_el is None:
+        return counts
+    for lot_result in result_el.findall("efac:LotResult", NS):
+        lot_id_el = lot_result.find("efac:TenderLot/cbc:ID", NS)
+        if lot_id_el is None or not lot_id_el.text:
+            continue
+        lot_id = lot_id_el.text.strip()
+        for stat in lot_result.findall("efac:ReceivedSubmissionsStatistics", NS):
+            code = (stat.findtext(
+                "efbc:StatisticsCode", default="", namespaces=NS) or "").strip().lower()
+            num = (stat.findtext(
+                "efbc:StatisticsNumeric", default="", namespaces=NS) or "").strip()
+            if code == "tenders" and num.isdigit():
+                counts[lot_id] = int(num)
+                break
+    return counts
+
+
 # pylint: disable=too-many-locals,too-many-branches,too-many-statements
 # The eForms award extraction walks a 4-step indirection chain
 # (TenderingParty → LotTender → SettledContract → LotResult) and the

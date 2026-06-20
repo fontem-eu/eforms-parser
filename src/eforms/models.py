@@ -50,6 +50,7 @@ class Award:
     currency: str | None = None
     award_date: str | None = None
     conclusion_date: str | None = None  # contract signing/conclusion date
+    tenders_received: int | None = None  # bidder count for the award's lot
 
 
 @dataclass
@@ -74,6 +75,13 @@ class Notice:  # pylint: disable=too-many-instance-attributes
     buyer_org_id: str | None = None
     total_value: float | None = None
     currency: str | None = None
+    # Tender-integrity fields (inputs to the EC Single Market Scoreboard /
+    # DIGIWHIST CRI red flags). All Optional — older notices omit them.
+    award_criterion_type: str | None = None   # price | cost | quality
+    submission_deadline: str | None = None    # tender submission cut-off
+    is_framework: bool | None = None          # framework agreement?
+    eu_funded: bool | None = None             # any EU co-financing declared
+    funding_programme: str | None = None      # e.g. cohesion / RRF programme code
     organizations: dict[str, Organization] = field(default_factory=dict)
     lots: list[Lot] = field(default_factory=list)
     awards: list[Award] = field(default_factory=list)

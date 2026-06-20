@@ -190,3 +190,69 @@ def test_parse_empty_xml():
     assert notice.title is None
     assert not notice.organizations
     assert not notice.awards
+
+
+def test_parse_integrity_fields():
+    """Award criteria, submission deadline, framework flag and EU funding
+    are extracted from the standard eForms locations."""
+    ns_decl = " ".join(f'xmlns:{p}="{u}"' for p, u in NS.items())
+    xml = f"""<?xml version="1.0"?>
+    <Root {ns_decl}>
+      <cac:TenderingTerms>
+        <cac:AwardingTerms><cac:AwardingCriterion>
+          <cac:SubordinateAwardingCriterion>
+            <cbc:AwardingCriterionTypeCode listName="award-criterion-type">price</cbc:AwardingCriterionTypeCode>
+          </cac:SubordinateAwardingCriterion>
+          <cac:SubordinateAwardingCriterion>
+            <cbc:AwardingCriterionTypeCode listName="award-criterion-type">quality</cbc:AwardingCriterionTypeCode>
+          </cac:SubordinateAwardingCriterion>
+        </cac:AwardingCriterion></cac:AwardingTerms>
+      </cac:TenderingTerms>
+      <cac:TenderingProcess>
+        <cac:ContractingSystem>
+          <cbc:ContractingSystemTypeCode listName="framework-agreement">fa-wo-rc</cbc:ContractingSystemTypeCode>
+        </cac:ContractingSystem>
+        <cac:TenderSubmissionDeadlinePeriod><cbc:EndDate>2024-05-01+02:00</cbc:EndDate></cac:TenderSubmissionDeadlinePeriod>
+      </cac:TenderingProcess>
+      <ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent><efext:EformsExtension>
+        <efac:Funding><cbc:FundingProgramCode>EUFUNDS_RRF</cbc:FundingProgramCode></efac:Funding>
+      </efext:EformsExtension></ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions>
+    </Root>""".encode()
+    notice = parse(xml)
+    assert notice.award_criterion_type == "meat"   # price + quality → MEAT
+    assert notice.submission_deadline == "2024-05-01"
+    assert notice.is_framework is True
+    assert notice.eu_funded is True
+    assert notice.funding_programme == "EUFUNDS_RRF"
+
+
+def test_award_criterion_price_only():
+    ns_decl = " ".join(f'xmlns:{p}="{u}"' for p, u in NS.items())
+    xml = f"""<?xml version="1.0"?>
+    <Root {ns_decl}><cac:TenderingTerms><cac:AwardingTerms><cac:AwardingCriterion>
+      <cac:SubordinateAwardingCriterion>
+        <cbc:AwardingCriterionTypeCode listName="award-criterion-type">price</cbc:AwardingCriterionTypeCode>
+      </cac:SubordinateAwardingCriterion>
+    </cac:AwardingCriterion></cac:AwardingTerms></cac:TenderingTerms></Root>""".encode()
+    assert parse(xml).award_criterion_type == "price"
+
+
+def test_extract_lot_tender_counts():
+    from eforms.extractors.awards import extract_lot_tender_counts  # pylint: disable=import-outside-toplevel
+    ns_decl = " ".join(f'xmlns:{p}="{u}"' for p, u in NS.items())
+    xml = f"""<?xml version="1.0"?>
+    <Root {ns_decl}>
+      <ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent><efext:EformsExtension>
+        <efac:NoticeResult>
+          <efac:LotResult>
+            <efac:TenderLot><cbc:ID>LOT-0001</cbc:ID></efac:TenderLot>
+            <efac:ReceivedSubmissionsStatistics>
+              <efbc:StatisticsCode listName="received-submission-type">tenders</efbc:StatisticsCode>
+              <efbc:StatisticsNumeric>1</efbc:StatisticsNumeric>
+            </efac:ReceivedSubmissionsStatistics>
+          </efac:LotResult>
+        </efac:NoticeResult>
+      </efext:EformsExtension></ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions>
+    </Root>""".encode()
+    counts = extract_lot_tender_counts(etree.fromstring(xml))
+    assert counts == {"LOT-0001": 1}   # single bidder

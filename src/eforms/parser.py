@@ -3,13 +3,23 @@ from __future__ import annotations
 
 from lxml import etree
 
-from .extractors.awards import extract_awards, extract_total_value
+from .extractors.awards import (
+    extract_awards,
+    extract_lot_tender_counts,
+    extract_total_value,
+)
 from .extractors.lots import extract_lots
 from .extractors.notice_metadata import (
     extract_dispatch_date,
     extract_issue_date,
     extract_notice_id,
     extract_notice_type,
+)
+from .extractors.integrity import (
+    extract_award_criterion_type,
+    extract_eu_funding,
+    extract_is_framework,
+    extract_submission_deadline,
 )
 from .extractors.organizations import extract_organizations
 from .extractors.procedure import (
@@ -37,6 +47,12 @@ def parse(xml_bytes: bytes) -> Notice:
     if buyer_party is not None and buyer_party.text:
         buyer_org_id = buyer_party.text.strip()
 
+    awards = extract_awards(root)
+    tender_counts = extract_lot_tender_counts(root)
+    for award in awards:
+        award.tenders_received = tender_counts.get(award.lot_id)
+    eu_funded, funding_programme = extract_eu_funding(root)
+
     return Notice(
         notice_id=extract_notice_id(root) or "",
         notice_type=extract_notice_type(root),
@@ -51,5 +67,10 @@ def parse(xml_bytes: bytes) -> Notice:
         currency=currency,
         organizations=orgs,
         lots=extract_lots(root),
-        awards=extract_awards(root),
+        awards=awards,
+        award_criterion_type=extract_award_criterion_type(root),
+        submission_deadline=extract_submission_deadline(root),
+        is_framework=extract_is_framework(root),
+        eu_funded=eu_funded,
+        funding_programme=funding_programme,
     )
