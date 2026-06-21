@@ -49,7 +49,11 @@ def extract_lot_tender_counts(root: etree._Element) -> dict[str, int]:
                 "efbc:StatisticsCode", default="", namespaces=NS) or "").strip().lower()
             num = (stat.findtext(
                 "efbc:StatisticsNumeric", default="", namespaces=NS) or "").strip()
-            if code == "tenders" and num.isdigit():
+            if code == "tenders" and num.isdigit() and int(num) > 0:
+                # 0 received tenders on an awarded lot is contradictory
+                # (you can't award a tender nobody bid on) — it's an
+                # incomplete-statistics artifact, so treat it as "not
+                # recorded" (skip) rather than a real zero.
                 counts[lot_id] = int(num)
                 break
     return counts

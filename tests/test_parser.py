@@ -256,3 +256,22 @@ def test_extract_lot_tender_counts():
     </Root>""".encode()
     counts = extract_lot_tender_counts(etree.fromstring(xml))
     assert counts == {"LOT-0001": 1}   # single bidder
+
+
+def test_zero_tenders_treated_as_unrecorded():
+    from eforms.extractors.awards import extract_lot_tender_counts  # pylint: disable=import-outside-toplevel
+    ns_decl = " ".join(f'xmlns:{p}="{u}"' for p, u in NS.items())
+    body = (
+        "<ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent>"
+        "<efext:EformsExtension><efac:NoticeResult><efac:LotResult>"
+        "<efac:TenderLot><cbc:ID>LOT-0001</cbc:ID></efac:TenderLot>"
+        "<efac:ReceivedSubmissionsStatistics>"
+        "<efbc:StatisticsCode listName=\"received-submission-type\">tenders</efbc:StatisticsCode>"
+        "<efbc:StatisticsNumeric>0</efbc:StatisticsNumeric>"
+        "</efac:ReceivedSubmissionsStatistics>"
+        "</efac:LotResult></efac:NoticeResult></efext:EformsExtension>"
+        "</ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions>"
+    )
+    xml = f'<?xml version="1.0"?><Root {ns_decl}>{body}</Root>'.encode()
+    # 0 received tenders on an awarded lot is contradictory -> not recorded.
+    assert not extract_lot_tender_counts(etree.fromstring(xml))
