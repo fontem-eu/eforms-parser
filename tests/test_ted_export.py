@@ -23,6 +23,9 @@ MODIFICATION_F20 = b"""<?xml version="1.0" encoding="UTF-8"?>
       <TD_DOCUMENT_TYPE CODE="K">Modification of a contract/concession during its term</TD_DOCUMENT_TYPE>
       <DATE_PUB>20240115</DATE_PUB>
     </CODIF_DATA>
+    <REF_NOTICE>
+      <NO_DOC_OJS>2017/S 147-305158</NO_DOC_OJS>
+    </REF_NOTICE>
   </CODED_DATA_SECTION>
   <FORM_SECTION>
     <F20_2014 LG="RO" CATEGORY="ORIGINAL">
@@ -123,6 +126,7 @@ def test_modification_value_prefers_after():
     want — and must win over VAL_TOTAL_BEFORE."""
     notice = parse_ted_export(_root(MODIFICATION_F20))
     assert notice.total_value == 2925919.96
+    assert notice.modification_value_before == 2821075.49
     assert notice.currency == "RON"
 
 
@@ -166,3 +170,36 @@ def test_multiple_contractors_yield_multiple_awards():
     assert names == {"S.C. Fortat-House S.R.L.", "Second Winner SRL"}
     # Synthetic org IDs must stay distinct.
     assert len({a.contractor_org_id for a in notice.awards}) == 2
+
+
+def test_modifies_publication_number_from_ref_notice():
+    """The legacy REF_NOTICE/NO_DOC_OJS (original notice OJS reference) is
+    converted to the machine publication-number form, matching the
+    modifies_publication_number the eForms path gets from the search API."""
+    notice = parse_ted_export(_root(MODIFICATION_F20))
+    assert notice.modifies_publication_number == "305158-2017"
+
+
+def test_modifies_publication_number_absent_when_no_ref():
+    """No REF_NOTICE -> modifies_publication_number is None (not an error)."""
+    xml = MODIFICATION_F20.replace(
+        b"<REF_NOTICE>\n      <NO_DOC_OJS>2017/S 147-305158</NO_DOC_OJS>\n    </REF_NOTICE>\n",
+        b"",
+    )
+    notice = parse_ted_export(_root(xml))
+    assert notice.modifies_publication_number is None
+    assert notice.buyer() is not None
+
+
+def test_before_value_none_when_only_after_published():
+    """A modification publishing only VAL_TOTAL (no before/after split)
+    yields modification_value_before None but a populated total_value."""
+    xml = MODIFICATION_F20.replace(
+        b'<VAL_TOTAL_BEFORE CURRENCY="RON">2821075.49</VAL_TOTAL_BEFORE>', b""
+    ).replace(
+        b'<VAL_TOTAL_AFTER CURRENCY="RON">2925919.96</VAL_TOTAL_AFTER>',
+        b'<VAL_TOTAL CURRENCY="RON">3000000.00</VAL_TOTAL>',
+    )
+    notice = parse_ted_export(_root(xml))
+    assert notice.modification_value_before is None
+    assert notice.total_value == 3000000.00

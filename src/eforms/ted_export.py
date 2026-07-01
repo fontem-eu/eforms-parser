@@ -19,6 +19,8 @@ matches on ``local-name()`` rather than a fixed prefix map.
 """
 from __future__ import annotations
 
+import re
+
 from lxml import etree
 
 from .models import Award, LegalIdentifier, Notice, Organization
@@ -105,21 +107,43 @@ def _pick_form(root):
     return forms[0] if forms else root
 
 
-def _modification_value(form) -> tuple[float | None, str | None]:
-    """The post-modification total from an ``F20`` ``INFO_MODIFICATIONS``
-    block: ``VAL_TOTAL_AFTER`` is the signal we want (the new total after
-    the change); fall back to ``VAL_TOTAL`` then ``VAL_TOTAL_BEFORE``.
-    Returns ``(value, currency)``."""
+def _modification_values(form) -> tuple[float | None, float | None, str | None]:
+    """The before/after totals from an ``F20`` ``INFO_MODIFICATIONS`` block.
+
+    Legacy modification notices self-contain the value change: the
+    corruption signal is ``VAL_TOTAL_BEFORE`` -> ``VAL_TOTAL_AFTER``.
+    ``VAL_TOTAL`` is a standalone total published when a notice carries
+    only one figure. Returns ``(before, after, currency)`` where ``after``
+    falls back to ``VAL_TOTAL``."""
     info = _first(form, "INFO_MODIFICATIONS")
     scope = _first(info, "VALUES") if info is not None else None
     if scope is None:
         scope = _first(form, "VALUES")
-    for tag in ("VAL_TOTAL_AFTER", "VAL_TOTAL", "VAL_TOTAL_BEFORE"):
+
+    def _one(tag):
         el = _first(scope, tag)
-        val = _num(_text(el))
-        if val is not None:
-            return val, (el.get("CURRENCY") if el is not None else None)
-    return None, None
+        return _num(_text(el)), (el.get("CURRENCY") if el is not None else None)
+
+    before, cur_b = _one("VAL_TOTAL_BEFORE")
+    after, cur_a = _one("VAL_TOTAL_AFTER")
+    total, cur_t = _one("VAL_TOTAL")
+    if after is None:
+        after = total
+    return before, after, (cur_a or cur_t or cur_b)
+
+
+def _modifies_pubnum(root) -> str | None:
+    """Publication-number of the notice this modification modifies.
+
+    The legacy ``REF_NOTICE/NO_DOC_OJS`` carries the original notice's OJS
+    reference (e.g. ``2017/S 147-305158``); convert it to the machine
+    publication-number form (``305158-2017``) so it matches the
+    ``modifies_publication_number`` the eForms path gets from the search
+    API. Returns None when no reference is published."""
+    ref = _first(root, "REF_NOTICE")
+    ojs = _text(_first(ref, "NO_DOC_OJS")) if ref is not None else None
+    match = re.match(r"\s*(\d{4})/S\s+\d+-(\d+)", ojs or "")
+    return f"{match.group(2)}-{match.group(1)}" if match else None
 
 
 def _extract_buyer(form, notice_country, organizations) -> str | None:
@@ -195,7 +219,7 @@ def parse_ted_export(root: etree._Element) -> Notice:
     form = _pick_form(root)
     organizations: dict[str, Organization] = {}
     buyer_org_id = _extract_buyer(form, notice_country, organizations)
-    total_value, currency = _modification_value(form)
+    value_before, total_value, currency = _modification_values(form)
     awards = _extract_awards(form, notice_country, organizations)
 
     cpv = _first(form, "CPV_CODE")
@@ -208,6 +232,8 @@ def parse_ted_export(root: etree._Element) -> Notice:
         buyer_org_id=buyer_org_id,
         total_value=total_value,
         currency=currency,
+        modification_value_before=value_before,
+        modifies_publication_number=_modifies_pubnum(root),
         organizations=organizations,
         awards=awards,
     )

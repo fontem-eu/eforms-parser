@@ -82,6 +82,12 @@ class Notice:  # pylint: disable=too-many-instance-attributes
     is_framework: bool | None = None          # framework agreement?
     eu_funded: bool | None = None             # any EU co-financing declared
     funding_programme: str | None = None      # e.g. cohesion / RRF programme code
+    # Contract-modification specifics. Legacy TED F20 modification
+    # notices self-contain the pre-modification total; the modified
+    # (after) total lands in ``total_value``. ``modifies_publication_number``
+    # is the publication-number of the notice this one modifies.
+    modification_value_before: float | None = None
+    modifies_publication_number: str | None = None
     organizations: dict[str, Organization] = field(default_factory=dict)
     lots: list[Lot] = field(default_factory=list)
     awards: list[Award] = field(default_factory=list)
