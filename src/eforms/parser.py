@@ -30,11 +30,20 @@ from .extractors.procedure import (
 )
 from .models import Notice
 from .namespaces import NS
+from .ted_export import looks_like_ted_export, parse_ted_export
 
 
 def parse(xml_bytes: bytes) -> Notice:
-    """Parse an eForms XML document and return a Notice dataclass."""
+    """Parse a TED notice XML document and return a Notice dataclass.
+
+    Routes on the document format: eForms (``<ContractAwardNotice>`` and
+    siblings, UBL ``cbc:``/``cac:`` elements) is the default; legacy TED
+    (``<TED_EXPORT>``, the pre-eForms S-forms still seen for 2023-mid-2024
+    notices) is handled by :func:`parse_ted_export`.
+    """
     root = etree.fromstring(xml_bytes)
+    if looks_like_ted_export(root):
+        return parse_ted_export(root)
     orgs = extract_organizations(root)
     total_value, currency = extract_total_value(root)
 
