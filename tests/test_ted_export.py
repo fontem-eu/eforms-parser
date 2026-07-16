@@ -299,3 +299,20 @@ def test_real_oldgen_award_names_the_winner():
 def test_f03_dialect_still_wins_when_present():
     """Additive, not a cutover: the newer F03 shape must be unaffected."""
     assert parse(_fixture(SOLE_WINNER)).awards[0].tenders_received == 2
+
+
+def test_real_oldgen_award_has_a_buyer():
+    """The loader drops any notice without one — `buyer = notice.buyer();
+    if not buyer: return`. The R2.0.7 authority lives in
+    CA_CE_CONCESSIONAIRE_PROFILE, not F03's ADDRESS_CONTRACTING_BODY, so
+    without it a whole month of award notices emits zero events (12,258 of
+    them did exactly that)."""
+    notice = parse(_fixture(OLDGEN))
+    buyer = notice.buyer()
+    assert buyer is not None, "old-generation notices must resolve a buyer"
+    assert buyer.name
+
+
+def test_f03_buyer_still_resolves():
+    """The old-gen buyer lookup is a fallback, never a replacement."""
+    assert parse(_fixture(SOLE_WINNER)).buyer() is not None
