@@ -266,9 +266,9 @@ def _extract_awards_oldgen(form, notice_country, organizations) -> list[Award]:
         value, currency = _oldgen_award_value(award)
         conclusion = _oldgen_award_date(award)
         named = [
-            (op, _text(_first(op, "OFFICIALNAME")))
+            (op, _org_name(op))
             for op in _local(award, "ECONOMIC_OPERATOR_NAME_ADDRESS")
-            if _text(_first(op, "OFFICIALNAME"))
+            if _org_name(op)
         ]
         sole_winner = len(named) == 1
         for block, name in named:
@@ -291,6 +291,43 @@ def _extract_awards_oldgen(form, notice_country, organizations) -> list[Award]:
                 )
             )
     return awards
+
+
+def _org_name(block) -> str | None:
+    """An organisation's name from an address block.
+
+    R2.0.7 writes the name as ORGANISATION's own text; later dialects wrap it
+    in OFFICIALNAME. _text() collects descendant text, so ORGANISATION covers
+    both — but OFFICIALNAME is tried first because ORGANISATION can also carry
+    trailing department lines.
+    """
+    return _text(_first(block, "OFFICIALNAME")) or _text(_first(block, "ORGANISATION"))
+
+
+def _extract_buyer_oldgen(form, notice_country, organizations) -> str | None:
+    """The contracting authority in the R2.0.7/R2.0.8 dialect.
+
+    It lives in CA_CE_CONCESSIONAIRE_PROFILE, not F03's
+    ADDRESS_CONTRACTING_BODY. Without it the loader drops the notice on the
+    floor: `buyer = notice.buyer(); if not buyer: return` — which is exactly
+    how a month of 12,258 award notices emitted zero events.
+    """
+    block = _first(form, "CA_CE_CONCESSIONAIRE_PROFILE")
+    if block is None:
+        block = _first(form, "NAME_ADDRESSES_CONTACT_CONTRACT_AWARD")
+    if block is None:
+        return None
+    name = _org_name(block)
+    if not name:
+        return None
+    organizations["buyer"] = Organization(
+        org_id="buyer",
+        name=name,
+        country=_country(block, notice_country),
+        legal_id=_legal_id(block),
+        address=_text(_first(block, "ADDRESS")),
+    )
+    return "buyer"
 
 
 def _extract_awards(form, notice_country, organizations) -> list[Award]:
@@ -359,6 +396,9 @@ def parse_ted_export(root: etree._Element) -> Notice:
     form = _pick_form(root)
     organizations: dict[str, Organization] = {}
     buyer_org_id = _extract_buyer(form, notice_country, organizations)
+    if buyer_org_id is None:
+        buyer_org_id = _extract_buyer_oldgen(
+            form, notice_country, organizations)
     value_before, total_value, currency = _modification_values(form)
     awards = _extract_awards(form, notice_country, organizations)
 
