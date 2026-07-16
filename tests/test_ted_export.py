@@ -5,6 +5,8 @@ a trimmed ``F20_2014`` contract-modification form, wrapped in the
 R2.0.9 default namespace so the tests also prove the parser's
 namespace-agnostic (``local-name()``) navigation.
 """
+from pathlib import Path
+
 from lxml import etree
 
 from eforms.parser import parse
@@ -203,3 +205,62 @@ def test_before_value_none_when_only_after_published():
     notice = parse_ted_export(_root(xml))
     assert notice.modification_value_before is None
     assert notice.total_value == 3000000.00
+
+
+# ── Real TED award notices (fixtures downloaded from ted.europa.eu) ────────
+# The legacy path was written for modifications ("K"); awards were parsed but
+# their bidder count and per-award value were never read. Every pre-eForms
+# award therefore looked like "competition not disclosed" — a statement about
+# this parser, not about the buyer. These fixtures are unmodified TED
+# documents, so the tests fail if TED's real shape stops being handled.
+_FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def _fixture(name: str) -> bytes:
+    return (_FIXTURES / name).read_bytes()
+
+
+SOLE_WINNER = "ted_export_f03_award_sole_winner_217109-2022.xml"
+CONSORTIUM = "ted_export_f03_award_consortium_233491-2019.xml"
+
+
+def test_real_f03_award_yields_bidder_count_and_value():
+    """A real F03 award with one winner: TED publishes
+    NB_TENDERS_RECEIVED=2 and VAL_TOTAL=7 361 500 000 HUF."""
+    notice = parse(_fixture(SOLE_WINNER))
+    assert len(notice.awards) == 1
+    award = notice.awards[0]
+    assert award.tenders_received == 2, "legacy bidder count must be parsed"
+    assert award.value == 7361500000.00
+    assert award.currency == "HUF"
+
+
+def test_real_f03_award_is_not_single_bidder():
+    """The regression that matters: this contract was competed (2 tenders).
+    Reading None here is what made the platform report it as undisclosed."""
+    award = parse(_fixture(SOLE_WINNER)).awards[0]
+    assert award.tenders_received is not None
+    assert award.tenders_received > 1
+
+
+def test_real_consortium_award_shares_bidder_count_across_winners():
+    """Two contractors jointly win ONE contract (4 tenders received). The
+    bidder count is a property of the lot, so every award carries it."""
+    notice = parse(_fixture(CONSORTIUM))
+    assert len(notice.awards) == 2
+    assert [a.tenders_received for a in notice.awards] == [4, 4]
+
+
+def test_real_consortium_award_does_not_multiply_the_money():
+    """The joint award is HUF 3.85bn total. Emitting one Award per winner and
+    attaching the full VAL_TOTAL to each would book 7.7bn of public money that
+    was never spent — so a non-sole winner carries no value."""
+    notice = parse(_fixture(CONSORTIUM))
+    assert [a.value for a in notice.awards] == [None, None]
+    assert [a.currency for a in notice.awards] == [None, None]
+
+
+def test_real_award_notice_type_maps_to_eforms_slug():
+    """F03 (TD_DOCUMENT_TYPE=7) must map to can-standard, or awards_only()
+    drops every legacy award on the floor."""
+    assert parse(_fixture(SOLE_WINNER)).notice_type == "can-standard"

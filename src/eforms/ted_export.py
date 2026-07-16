@@ -70,6 +70,15 @@ def _num(text: str | None) -> float | None:
         return None
 
 
+def _int(text: str | None) -> int | None:
+    if not text:
+        return None
+    try:
+        return int(text.strip())
+    except (TypeError, ValueError):
+        return None
+
+
 def _fmt_date(raw: str | None) -> str | None:
     """``20240115`` -> ``2024-01-15``; anything else passes through."""
     if raw and len(raw) == 8 and raw.isdigit():
@@ -163,7 +172,9 @@ def _extract_buyer(form, notice_country, organizations) -> str | None:
     return "buyer"
 
 
-def _extract_awards(form, notice_country, organizations) -> list[Award]:
+def _extract_awards(  # pylint: disable=too-many-locals
+    form, notice_country, organizations,
+) -> list[Award]:
     """Add each winning contractor to ``organizations`` and return one
     :class:`Award` per contractor. Org ids are synthetic (legacy notices
     carry none) but stay distinct and internally consistent."""
@@ -173,13 +184,36 @@ def _extract_awards(form, notice_country, organizations) -> list[Award]:
         conclusion = _fmt_date(
             _text(_first(award_contract, "DATE_CONCLUSION_CONTRACT"))
         )
+        # Legacy publishes the bidder count per awarded contract, as
+        # ``<TENDERS><NB_TENDERS_RECEIVED>``. It is the single-bidder signal:
+        # without it every pre-eForms award reads as "competition not
+        # disclosed", which is a statement about our parser, not about the
+        # buyer. eForms carries the same figure as ReceivedSubmissionsStatistics.
+        tenders = _int(_text(_first(award_contract, "NB_TENDERS_RECEIVED")))
+        # ``<AWARDED_CONTRACT><VALUES><VAL_TOTAL CURRENCY="...">`` — scoped to
+        # this AWARD_CONTRACT so the notice-level OBJECT_CONTRACT total can't
+        # leak in. Feeds the loader's "payable" money signal; without it a
+        # legacy multi-award notice ends up with no value at all (the loader
+        # only trusts notice.total_value when the notice has a single award).
+        val_el = _first(award_contract, "VAL_TOTAL")
+        value = _num(_text(val_el))
+        currency = val_el.get("CURRENCY") if val_el is not None else None
+
+        named: list[tuple[object, str]] = []
         for contractor in _local(award_contract, "CONTRACTOR"):
             addr = _first(contractor, "ADDRESS_CONTRACTOR")
             name = _text(
                 _first(addr if addr is not None else contractor, "OFFICIALNAME")
             )
-            if not name:
-                continue
+            if name:
+                named.append((addr, name))
+        # A consortium wins ONE contract jointly but lists several CONTRACTORs,
+        # and we emit one Award per contractor — attaching the full VAL_TOTAL to
+        # each would multiply the money. Only attribute the value to a sole
+        # winner; the bidder count is a property of the lot, so every award of
+        # this contract legitimately carries it.
+        sole_winner = len(named) == 1
+        for addr, name in named:
             org_id = f"contractor-{len(awards)}"
             organizations[org_id] = Organization(
                 org_id=org_id,
@@ -192,7 +226,10 @@ def _extract_awards(form, notice_country, organizations) -> list[Award]:
                 Award(
                     lot_id=lot_no or org_id,
                     contractor_org_id=org_id,
+                    value=value if sole_winner else None,
+                    currency=currency if sole_winner else None,
                     conclusion_date=conclusion,
+                    tenders_received=tenders,
                 )
             )
     return awards
