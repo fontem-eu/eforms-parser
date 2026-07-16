@@ -264,3 +264,38 @@ def test_real_award_notice_type_maps_to_eforms_slug():
     """F03 (TD_DOCUMENT_TYPE=7) must map to can-standard, or awards_only()
     drops every legacy award on the floor."""
     assert parse(_fixture(SOLE_WINNER)).notice_type == "can-standard"
+
+
+# ── The older XML generation (R2.0.7/R2.0.8, roughly 2011-2016) ────────────
+# A different dialect entirely: AWARD_OF_CONTRACT / OFFERS_RECEIVED_NUMBER /
+# ECONOMIC_OPERATOR_NAME_ADDRESS / VALUE_COST@FMTVAL. The dialects coexist for
+# years, so this must parse alongside the F03_2014 shape, not instead of it.
+OLDGEN = "ted_export_r207_award_oldgen_179996-2013.xml"
+
+
+def test_real_oldgen_award_yields_bidder_count():
+    """A real 2013 R2.0.7 award: TED publishes OFFERS_RECEIVED_NUMBER=2.
+    Without this dialect every 2011-2016 award reads as 'not disclosed'."""
+    notice = parse(_fixture(OLDGEN))
+    assert notice.awards, "old-generation awards must parse"
+    assert notice.awards[0].tenders_received == 2
+
+
+def test_real_oldgen_award_uses_awarded_value_not_the_estimate():
+    """This award carries both INITIAL_ESTIMATED_TOTAL_VALUE_CONTRACT
+    (PLN 2 967 317.07) and the awarded COSTS_RANGE_AND_CURRENCY
+    (EUR 1 860 000). Booking the estimate would misstate the spend."""
+    award = parse(_fixture(OLDGEN)).awards[0]
+    assert award.value == 1860000.00
+    assert award.currency == "EUR"
+
+
+def test_real_oldgen_award_names_the_winner():
+    notice = parse(_fixture(OLDGEN))
+    org = notice.organizations[notice.awards[0].contractor_org_id]
+    assert "DECSOFT" in org.name
+
+
+def test_f03_dialect_still_wins_when_present():
+    """Additive, not a cutover: the newer F03 shape must be unaffected."""
+    assert parse(_fixture(SOLE_WINNER)).awards[0].tenders_received == 2
