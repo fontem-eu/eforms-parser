@@ -209,6 +209,90 @@ def _named_contractors(award_contract) -> list[tuple[object, str]]:
     return out
 
 
+
+# ── R2.0.7 / R2.0.8 generation (roughly 2011-2016) ─────────────────────────
+# The older XML generation names everything differently: the award block is
+# AWARD_OF_CONTRACT (not AWARD_CONTRACT), the bidder count is
+# OFFERS_RECEIVED_NUMBER (not NB_TENDERS_RECEIVED), the winner sits in
+# ECONOMIC_OPERATOR_NAME_ADDRESS, and the money is VALUE_COST/@FMTVAL under
+# CONTRACT_VALUE_INFORMATION. The dialects coexist for years (a 2016 month
+# carries more OFFERS_RECEIVED_NUMBER notices than NB_TENDERS_RECEIVED), so
+# support is additive, not a cutover by date.
+
+
+def _oldgen_award_date(award) -> str | None:
+    """``<CONTRACT_AWARD_DATE><DAY/><MONTH/><YEAR/>`` -> ISO date."""
+    el = _first(award, "CONTRACT_AWARD_DATE")
+    if el is None:
+        return None
+    day, month, year = (
+        _text(_first(el, part)) for part in ("DAY", "MONTH", "YEAR")
+    )
+    if not (day and month and year):
+        return None
+    try:
+        return f"{int(year):04d}-{int(month):02d}-{int(day):02d}"
+    except (TypeError, ValueError):
+        return None
+
+
+def _oldgen_award_value(award) -> tuple[float | None, str | None]:
+    """The value actually awarded, from CONTRACT_VALUE_INFORMATION.
+
+    Deliberately skips INITIAL_ESTIMATED_TOTAL_VALUE_CONTRACT: that is the
+    pre-tender estimate, and booking it as the award would misstate the spend.
+    ``@FMTVAL`` carries the machine-readable number (the element text is
+    space-grouped, e.g. "1 860 000").
+    """
+    info = _first(award, "CONTRACT_VALUE_INFORMATION")
+    if info is None:
+        return None, None
+    for tag in ("COSTS_RANGE_AND_CURRENCY_WITH_VAT_RATE",
+                "COSTS_RANGE_AND_CURRENCY"):
+        block = _first(info, tag)
+        if block is None:
+            continue
+        cost = _first(block, "VALUE_COST")
+        if cost is not None:
+            return _num(cost.get("FMTVAL")), block.get("CURRENCY")
+    return None, None
+
+
+def _extract_awards_oldgen(form, notice_country, organizations) -> list[Award]:
+    """Awards in the R2.0.7/R2.0.8 ``AWARD_OF_CONTRACT`` shape."""
+    awards: list[Award] = []
+    for award in _local(form, "AWARD_OF_CONTRACT"):
+        tenders = _int(_text(_first(award, "OFFERS_RECEIVED_NUMBER")))
+        value, currency = _oldgen_award_value(award)
+        conclusion = _oldgen_award_date(award)
+        named = [
+            (op, _text(_first(op, "OFFICIALNAME")))
+            for op in _local(award, "ECONOMIC_OPERATOR_NAME_ADDRESS")
+            if _text(_first(op, "OFFICIALNAME"))
+        ]
+        sole_winner = len(named) == 1
+        for block, name in named:
+            org_id = f"contractor-{len(awards)}"
+            organizations[org_id] = Organization(
+                org_id=org_id,
+                name=name,
+                country=_country(block, notice_country),
+                legal_id=_legal_id(block),
+                address=_text(_first(block, "ADDRESS")),
+            )
+            awards.append(
+                Award(
+                    lot_id=org_id,
+                    contractor_org_id=org_id,
+                    value=value if sole_winner else None,
+                    currency=currency if sole_winner else None,
+                    conclusion_date=conclusion,
+                    tenders_received=tenders,
+                )
+            )
+    return awards
+
+
 def _extract_awards(form, notice_country, organizations) -> list[Award]:
     """Add each winning contractor to ``organizations`` and return one
     :class:`Award` per contractor. Org ids are synthetic (legacy notices
@@ -247,6 +331,10 @@ def _extract_awards(form, notice_country, organizations) -> list[Award]:
                     tenders_received=tenders,
                 )
             )
+    # Older notices speak the AWARD_OF_CONTRACT dialect instead. A document
+    # only ever uses one of the two, so this is a fallthrough, not a merge.
+    if not awards:
+        awards = _extract_awards_oldgen(form, notice_country, organizations)
     return awards
 
 
