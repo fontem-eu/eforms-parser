@@ -85,7 +85,13 @@ class _TenderInfo:
 
 @dataclass
 class _LotResultContext:
-    """The per-LotResult facts shared by every Award it produces."""
+    """The per-LotResult FALLBACK facts for the awards it produces.
+
+    `is_winner` and the dates here apply only to notices that emit no
+    SettledContract→LotTender references at all; when those references
+    exist they override everything in this context (see
+    `_resolve_outcome`).
+    """
 
     lot_id: str = ""
     is_winner: bool = True
@@ -102,8 +108,21 @@ class _NoticeResultIndex:
     # (the historical bug) silently dropped the co-bidders.
     tpa_to_orgs: dict[str, list[str]] = field(default_factory=dict)
     tenders: dict[str, _TenderInfo] = field(default_factory=dict)
+    # SettledContract ID → its dates (fallback path only).
     award_dates: dict[str, str] = field(default_factory=dict)
     conclusion_dates: dict[str, str] = field(default_factory=dict)
+    # Every LotTender ID referenced by any SettledContract. When
+    # non-empty this is the notice's authoritative winner set: Hungarian
+    # (EKR) and Swedish eSender notices attach ALL received tenders to a
+    # `selec-w` LotResult, and only the SettledContract reference tells
+    # winners from named losers.
+    settled_tender_ids: set[str] = field(default_factory=set)
+    # LotTender ID → dates of the SettledContract that references it.
+    # Keyed per tender because one LotResult may reference many
+    # SettledContracts (one per framework supplier), each with its own
+    # dates; loser tenders belong to no contract and get none.
+    tender_award_dates: dict[str, str] = field(default_factory=dict)
+    tender_conclusion_dates: dict[str, str] = field(default_factory=dict)
 
 
 def _build_tpa_to_orgs(result_el: etree._Element) -> dict[str, list[str]]:
@@ -182,15 +201,40 @@ def _build_contract_dates(
     return award_dates, conclusion_dates
 
 
+def _build_settled_tender_refs(result_el: etree._Element) -> dict[str, list[str]]:
+    """SettledContract ID → the LotTender IDs it references (winners)."""
+    refs: dict[str, list[str]] = {}
+    for sc in result_el.findall("efac:SettledContract", NS):
+        sc_id = _ref_text(sc, _CBC_ID)
+        if sc_id is None:
+            continue
+        tender_ids = [
+            el.text.strip()
+            for el in sc.findall("efac:LotTender/cbc:ID", NS)
+            if el.text and el.text.strip()
+        ]
+        if tender_ids:
+            refs[sc_id] = tender_ids
+    return refs
+
+
 def _build_index(result_el: etree._Element) -> _NoticeResultIndex:
     """Resolve every lookup table the LotResult pass joins against."""
     award_dates, conclusion_dates = _build_contract_dates(result_el)
-    return _NoticeResultIndex(
+    index = _NoticeResultIndex(
         tpa_to_orgs=_build_tpa_to_orgs(result_el),
         tenders=_build_tenders(result_el),
         award_dates=award_dates,
         conclusion_dates=conclusion_dates,
     )
+    for sc_id, tender_ids in _build_settled_tender_refs(result_el).items():
+        for tender_id in tender_ids:
+            index.settled_tender_ids.add(tender_id)
+            if sc_id in award_dates:
+                index.tender_award_dates[tender_id] = award_dates[sc_id]
+            if sc_id in conclusion_dates:
+                index.tender_conclusion_dates[tender_id] = conclusion_dates[sc_id]
+    return index
 
 
 def _lot_result_context(
@@ -213,6 +257,37 @@ def _lot_result_context(
     )
 
 
+def _resolve_outcome(
+    tender_id: str, ctx: _LotResultContext, index: _NoticeResultIndex
+) -> tuple[bool, str | None, str | None]:
+    """(is_winner, award_date, conclusion_date) for one referenced tender.
+
+    When the notice emits any SettledContract→LotTender reference, that
+    reference set is the authoritative winner list: Hungarian (EKR) and
+    Swedish eSender notices attach EVERY received tender to the `selec-w`
+    LotResult, so the LotResult code alone would crown named LOSING
+    bidders as winners. The decision is scoped per NOTICE, not per lot —
+    in every observed notice either all settled contracts carry the
+    references or none do (the one contract without them in the corpus
+    belongs to a `clos-nw` lot, whose tender is a loser either way).
+
+    Contract dates attach only to the tender the settling contract
+    actually references — losers are not party to any contract and get
+    None.
+
+    Fallback (no references anywhere in the notice — some countries never
+    emit them): the LotResult's `cbc:TenderResultCode` rule and its
+    contract's dates, unchanged from before.
+    """
+    if index.settled_tender_ids:
+        return (
+            tender_id in index.settled_tender_ids,
+            index.tender_award_dates.get(tender_id),
+            index.tender_conclusion_dates.get(tender_id),
+        )
+    return ctx.is_winner, ctx.award_date, ctx.conclusion_date
+
+
 def _awards_for_tender(
     tender_id: str, ctx: _LotResultContext, index: _NoticeResultIndex
 ) -> list[Award]:
@@ -221,10 +296,17 @@ def _awards_for_tender(
     Consortium members each carry the FULL tender value — TED publishes no
     per-member split — flagged via `is_consortium_member` so consumers can
     deduplicate instead of summing the same money once per member.
+
+    Non-winner awards (named losing bidders) are emitted on purpose —
+    they are the only public record of who ELSE bid. Their `value` is the
+    losing BID amount, not an award value: consumers must never sum
+    non-winner values into contract totals.
     """
     info = index.tenders.get(tender_id)
     if info is None or info.tpa_ref is None:
         return []
+    is_winner, award_date, conclusion_date = _resolve_outcome(
+        tender_id, ctx, index)
     orgs = index.tpa_to_orgs.get(info.tpa_ref, [])
     is_consortium = len(orgs) > 1
     return [
@@ -233,10 +315,10 @@ def _awards_for_tender(
             contractor_org_id=org_id,
             value=info.value,
             currency=info.currency,
-            award_date=ctx.award_date,
-            conclusion_date=ctx.conclusion_date,
+            award_date=award_date,
+            conclusion_date=conclusion_date,
             rank=info.rank,
-            is_winner=ctx.is_winner,
+            is_winner=is_winner,
             tendering_party_id=info.tpa_ref,
             is_consortium_member=is_consortium,
         )
@@ -269,13 +351,16 @@ def extract_awards(root: etree._Element) -> list[Award]:
     Real eForms structure (indirection chain):
       TenderingParty (TPA-0001) → Tenderer* → org IDs (ORG-0002…)
       LotTender (TEN-0001) → TenderingParty ref (TPA-0001), value, rank
-      SettledContract (CON-0001) → has AwardDate
-      LotResult → refs LotTender*, TenderLot, SettledContract
+      SettledContract (CON-0001) → has AwardDate, refs LotTender*
+      LotResult → refs LotTender*, TenderLot, SettledContract*
 
-    Both starred edges are one-to-MANY, so one Award is emitted per
-    (LotResult × LotTender × Tenderer). Only suppliers TED actually names
-    produce an Award — losing bidders are never published, so an unnamed
-    bidder is simply absent rather than invented.
+    Both starred Tenderer/LotTender edges are one-to-MANY, so one Award
+    is emitted per (LotResult × LotTender × Tenderer). Only suppliers TED
+    actually names produce an Award — an unnamed bidder is simply absent
+    rather than invented. Some eSenders (Hungarian EKR, Swedish) DO name
+    losing bidders by attaching every received tender to the LotResult;
+    those yield Awards with `is_winner=False`, decided by the
+    SettledContract→LotTender references (see `_resolve_outcome`).
     """
     result_el = root.find(_RESULT_PATH, NS)
     if result_el is None:
