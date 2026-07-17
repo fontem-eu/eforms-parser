@@ -66,9 +66,19 @@ class Award:  # pylint: disable=too-many-instance-attributes
     # Position in a ranked cascade (eForms `cbc:RankCode` on the
     # LotTender). None when the notice does not rank its tenders.
     rank: int | None = None
-    # Whether the referencing LotResult recorded this tender as selected
-    # (`cbc:TenderResultCode` == "selec-w"). Notices that omit the code
-    # predate the field and only ever record winners, so they default True.
+    # Whether this tender actually won. When the notice emits any
+    # SettledContract→LotTender reference, winners are exactly the
+    # referenced tenders (Hungarian EKR / Swedish eSenders attach ALL
+    # received tenders — including named losers — to the `selec-w`
+    # LotResult, so the result code alone is not trustworthy). Notices
+    # without such references fall back to the LotResult's
+    # `cbc:TenderResultCode` == "selec-w" rule; notices that omit the
+    # code predate the field and only ever record winners (default True).
+    #
+    # For non-winner awards, `value` is the losing BID amount — NOT an
+    # award value. Consumers must exclude non-winners when summing
+    # contract totals, and `award_date`/`conclusion_date` are None for
+    # them (a loser is not party to the settled contract).
     is_winner: bool = True
     tendering_party_id: str | None = None
     # True when this contractor bid as part of a multi-member
