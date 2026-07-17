@@ -2,6 +2,7 @@
 from lxml import etree
 
 from eforms.extractors.organizations import extract_organizations
+from eforms.models import Award
 from eforms.namespaces import NS
 from eforms.parser import parse
 
@@ -176,6 +177,28 @@ def test_parse_awards():
     assert award.value == 12500000.0
     assert award.currency == "EUR"
     assert award.award_date == "2024-06-01"
+
+
+def test_parse_awards_single_winner_unchanged_by_fan_out():
+    """Regression: the single-winner path (one LotResult → one LotTender →
+    one Tenderer) must still yield exactly the same one Award after the
+    extractor was taught to fan out across multi-tender / consortium
+    results. This sample omits cbc:TenderResultCode and cbc:RankCode —
+    an unranked, implicitly-selected winner."""
+    award = parse(MINIMAL_CAN).awards[0]
+    assert award == Award(
+        lot_id="LOT-0001",
+        contractor_org_id="ORG-WINNER",
+        value=12500000.0,
+        currency="EUR",
+        award_date="2024-06-01",
+        conclusion_date=None,
+        tenders_received=None,
+        rank=None,
+        is_winner=True,
+        tendering_party_id="TPA-0001",
+        is_consortium_member=False,
+    )
 
 
 def test_parse_empty_xml():

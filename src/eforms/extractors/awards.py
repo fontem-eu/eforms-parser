@@ -1,6 +1,8 @@
 """Extract award results — lot→tender→contractor mapping + values."""
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 from lxml import etree
 
 from ..models import Award
@@ -8,6 +10,10 @@ from ..namespaces import NS
 from .notice_metadata import _clean_date
 
 _CBC_ID = "cbc:ID"
+
+# cbc:TenderResultCode value marking a selected (winning) tender. The
+# other code seen in the wild is "clos-nw" (closed, no winner).
+_WINNER_CODE = "selec-w"
 
 _RESULT_PATH = (
     ".//ext:UBLExtensions/ext:UBLExtension/ext:ExtensionContent/"
@@ -59,125 +65,223 @@ def extract_lot_tender_counts(root: etree._Element) -> dict[str, int]:
     return counts
 
 
-# pylint: disable=too-many-locals,too-many-branches,too-many-statements
-# The eForms award extraction walks a 4-step indirection chain
-# (TenderingParty → LotTender → SettledContract → LotResult) and the
-# locals/branches needed to bridge those XPath joins are intrinsic to
-# the schema. Splitting it produces helpers that take 6+ context
-# args and obscure the single linear extraction pass.
+def _ref_text(parent: etree._Element, path: str) -> str | None:
+    """Stripped text of the first `path` match, or None when absent/blank."""
+    el = parent.find(path, NS)
+    if el is None or not el.text or not el.text.strip():
+        return None
+    return el.text.strip()
+
+
+@dataclass
+class _TenderInfo:
+    """A LotTender: who bid, for how much, at which cascade rank."""
+
+    tpa_ref: str | None = None
+    value: float | None = None
+    currency: str | None = None
+    rank: int | None = None
+
+
+@dataclass
+class _LotResultContext:
+    """The per-LotResult facts shared by every Award it produces."""
+
+    lot_id: str = ""
+    is_winner: bool = True
+    award_date: str | None = None
+    conclusion_date: str | None = None
+
+
+@dataclass
+class _NoticeResultIndex:
+    """Resolved lookup tables for the eForms award indirection chain."""
+
+    # TenderingParty ID → EVERY named Tenderer org id. A consortium of
+    # joint bidders lists one Tenderer per member; keeping only the first
+    # (the historical bug) silently dropped the co-bidders.
+    tpa_to_orgs: dict[str, list[str]] = field(default_factory=dict)
+    tenders: dict[str, _TenderInfo] = field(default_factory=dict)
+    award_dates: dict[str, str] = field(default_factory=dict)
+    conclusion_dates: dict[str, str] = field(default_factory=dict)
+
+
+def _build_tpa_to_orgs(result_el: etree._Element) -> dict[str, list[str]]:
+    """TenderingParty ID → list of every named Tenderer org id."""
+    mapping: dict[str, list[str]] = {}
+    for tpa in result_el.findall("efac:TenderingParty", NS):
+        tpa_id = _ref_text(tpa, _CBC_ID)
+        if tpa_id is None:
+            continue
+        orgs = [
+            el.text.strip()
+            for el in tpa.findall("efac:Tenderer/cbc:ID", NS)
+            if el.text and el.text.strip()
+        ]
+        if orgs:
+            mapping[tpa_id] = orgs
+    return mapping
+
+
+def _tender_amount(lt: etree._Element) -> tuple[float | None, str | None]:
+    """(value, currency) from a LotTender's payable amount."""
+    val_el = lt.find("cac:LegalMonetaryTotal/cbc:PayableAmount", NS)
+    if val_el is None or not val_el.text:
+        return None, None
+    try:
+        value = float(val_el.text.strip())
+    except ValueError:
+        value = None
+    return value, val_el.get("currencyID")
+
+
+def _tender_rank(lt: etree._Element) -> int | None:
+    """Cascade position from `cbc:RankCode`, or None when unranked."""
+    rank = _ref_text(lt, "cbc:RankCode")
+    if rank is None or not rank.isdigit():
+        return None
+    return int(rank)
+
+
+def _build_tenders(result_el: etree._Element) -> dict[str, _TenderInfo]:
+    """LotTender ID → its bidder ref, price and rank."""
+    tenders: dict[str, _TenderInfo] = {}
+    for lt in result_el.findall("efac:LotTender", NS):
+        lt_id = _ref_text(lt, _CBC_ID)
+        if lt_id is None:
+            continue
+        value, currency = _tender_amount(lt)
+        tenders[lt_id] = _TenderInfo(
+            tpa_ref=_ref_text(lt, "efac:TenderingParty/cbc:ID"),
+            value=value,
+            currency=currency,
+            rank=_tender_rank(lt),
+        )
+    return tenders
+
+
+def _build_contract_dates(
+    result_el: etree._Element,
+) -> tuple[dict[str, str], dict[str, str]]:
+    """(SettledContract ID → award date, SettledContract ID → conclusion date)."""
+    award_dates: dict[str, str] = {}
+    conclusion_dates: dict[str, str] = {}
+    for sc in result_el.findall("efac:SettledContract", NS):
+        sc_id = _ref_text(sc, _CBC_ID)
+        if sc_id is None:
+            continue
+        for path, target in (
+            ("cbc:AwardDate", award_dates),
+            # Contract conclusion/signing date (IssueDate on SettledContract)
+            ("cbc:IssueDate", conclusion_dates),
+        ):
+            raw = _ref_text(sc, path)
+            cleaned = _clean_date(raw) if raw else None
+            if cleaned:
+                target[sc_id] = cleaned
+    return award_dates, conclusion_dates
+
+
+def _build_index(result_el: etree._Element) -> _NoticeResultIndex:
+    """Resolve every lookup table the LotResult pass joins against."""
+    award_dates, conclusion_dates = _build_contract_dates(result_el)
+    return _NoticeResultIndex(
+        tpa_to_orgs=_build_tpa_to_orgs(result_el),
+        tenders=_build_tenders(result_el),
+        award_dates=award_dates,
+        conclusion_dates=conclusion_dates,
+    )
+
+
+def _lot_result_context(
+    lr: etree._Element, index: _NoticeResultIndex
+) -> _LotResultContext | None:
+    """Per-LotResult facts, or None when it names no lot."""
+    lot_id_el = lr.find("efac:TenderLot/cbc:ID", NS)
+    if lot_id_el is None:
+        return None
+    # A LotResult that omits cbc:TenderResultCode predates the field and
+    # only ever records a winner — default True rather than demoting
+    # every legacy award to a non-winner.
+    code = _ref_text(lr, "cbc:TenderResultCode")
+    sc_ref = _ref_text(lr, "efac:SettledContract/cbc:ID") or ""
+    return _LotResultContext(
+        lot_id=lot_id_el.text.strip() if lot_id_el.text else "",
+        is_winner=code is None or code == _WINNER_CODE,
+        award_date=index.award_dates.get(sc_ref),
+        conclusion_date=index.conclusion_dates.get(sc_ref),
+    )
+
+
+def _awards_for_tender(
+    tender_id: str, ctx: _LotResultContext, index: _NoticeResultIndex
+) -> list[Award]:
+    """One Award per named Tenderer behind `tender_id`.
+
+    Consortium members each carry the FULL tender value — TED publishes no
+    per-member split — flagged via `is_consortium_member` so consumers can
+    deduplicate instead of summing the same money once per member.
+    """
+    info = index.tenders.get(tender_id)
+    if info is None or info.tpa_ref is None:
+        return []
+    orgs = index.tpa_to_orgs.get(info.tpa_ref, [])
+    is_consortium = len(orgs) > 1
+    return [
+        Award(
+            lot_id=ctx.lot_id,
+            contractor_org_id=org_id,
+            value=info.value,
+            currency=info.currency,
+            award_date=ctx.award_date,
+            conclusion_date=ctx.conclusion_date,
+            rank=info.rank,
+            is_winner=ctx.is_winner,
+            tendering_party_id=info.tpa_ref,
+            is_consortium_member=is_consortium,
+        )
+        for org_id in orgs
+    ]
+
+
+def _awards_for_lot_result(
+    lr: etree._Element, index: _NoticeResultIndex
+) -> list[Award]:
+    """Every Award a single LotResult yields.
+
+    A LotResult may reference MANY LotTenders (multi-supplier framework
+    agreements and ranked cascades), so this fans out rather than taking
+    the first reference only.
+    """
+    ctx = _lot_result_context(lr, index)
+    if ctx is None:
+        return []
+    awards: list[Award] = []
+    for ref in lr.findall("efac:LotTender/cbc:ID", NS):
+        if ref.text and ref.text.strip():
+            awards.extend(_awards_for_tender(ref.text.strip(), ctx, index))
+    return awards
+
+
 def extract_awards(root: etree._Element) -> list[Award]:
     """Extract per-lot award results.
 
     Real eForms structure (indirection chain):
-      TenderingParty (TPA-0001) → Tenderer → org ID (ORG-0002)
-      LotTender (TEN-0001) → TenderingParty ref (TPA-0001), has value
+      TenderingParty (TPA-0001) → Tenderer* → org IDs (ORG-0002…)
+      LotTender (TEN-0001) → TenderingParty ref (TPA-0001), value, rank
       SettledContract (CON-0001) → has AwardDate
-      LotResult → refs LotTender, TenderLot, SettledContract
+      LotResult → refs LotTender*, TenderLot, SettledContract
+
+    Both starred edges are one-to-MANY, so one Award is emitted per
+    (LotResult × LotTender × Tenderer). Only suppliers TED actually names
+    produce an Award — losing bidders are never published, so an unnamed
+    bidder is simply absent rather than invented.
     """
     result_el = root.find(_RESULT_PATH, NS)
     if result_el is None:
         return []
-
-    # Step 1: Build TenderingParty ID → org ID mapping
-    tpa_to_org: dict[str, str] = {}
-    for tpa in result_el.findall("efac:TenderingParty", NS):
-        tpa_id_el = tpa.find(_CBC_ID, NS)
-        if tpa_id_el is None or not tpa_id_el.text:
-            continue
-        tpa_id = tpa_id_el.text.strip()
-        tenderer = tpa.find("efac:Tenderer/cbc:ID", NS)
-        if tenderer is not None and tenderer.text:
-            tpa_to_org[tpa_id] = tenderer.text.strip()
-
-    # Step 2: Build LotTender ID → (TenderingParty ref, value, currency)
-    tender_info: dict[str, dict] = {}
-    for lt in result_el.findall("efac:LotTender", NS):
-        lt_id_el = lt.find(_CBC_ID, NS)
-        if lt_id_el is None or not lt_id_el.text:
-            continue
-        lt_id = lt_id_el.text.strip()
-
-        tpa_ref_el = lt.find("efac:TenderingParty/cbc:ID", NS)
-        tpa_ref = (
-            tpa_ref_el.text.strip()
-            if tpa_ref_el is not None and tpa_ref_el.text
-            else None
-        )
-
-        value = None
-        currency = None
-        val_el = lt.find("cac:LegalMonetaryTotal/cbc:PayableAmount", NS)
-        if val_el is not None and val_el.text:
-            try:
-                value = float(val_el.text.strip())
-            except ValueError:
-                pass
-            currency = val_el.get("currencyID")
-
-        tender_info[lt_id] = {
-            "tpa_ref": tpa_ref,
-            "value": value,
-            "currency": currency,
-        }
-
-    # Step 3: Build SettledContract ID → (award date, conclusion date)
-    contract_dates: dict[str, str] = {}
-    contract_conclusion: dict[str, str] = {}
-    for sc in result_el.findall("efac:SettledContract", NS):
-        sc_id_el = sc.find(_CBC_ID, NS)
-        if sc_id_el is None or not sc_id_el.text:
-            continue
-        sc_id = sc_id_el.text.strip()
-        date_el = sc.find("cbc:AwardDate", NS)
-        if date_el is not None and date_el.text:
-            cleaned = _clean_date(date_el.text.strip())
-            if cleaned:
-                contract_dates[sc_id] = cleaned
-        # Contract conclusion/signing date (IssueDate on SettledContract)
-        issue_el = sc.find("cbc:IssueDate", NS)
-        if issue_el is not None and issue_el.text:
-            cleaned = _clean_date(issue_el.text.strip())
-            if cleaned:
-                contract_conclusion[sc_id] = cleaned
-
-    # Step 4: Assemble awards from LotResult
+    index = _build_index(result_el)
     awards: list[Award] = []
     for lr in result_el.findall("efac:LotResult", NS):
-        lot_id_el = lr.find("efac:TenderLot/cbc:ID", NS)
-        tender_ref_el = lr.find("efac:LotTender/cbc:ID", NS)
-        contract_ref_el = lr.find("efac:SettledContract/cbc:ID", NS)
-
-        if lot_id_el is None or tender_ref_el is None:
-            continue
-
-        lot_id = lot_id_el.text.strip() if lot_id_el.text else ""
-        tender_id = tender_ref_el.text.strip() if tender_ref_el.text else ""
-
-        # Resolve: LotTender → TenderingParty → Org
-        info = tender_info.get(tender_id, {})
-        tpa_ref = info.get("tpa_ref", "")
-        org_id = tpa_to_org.get(tpa_ref, "")
-
-        # Value from LotTender
-        value = info.get("value")
-        currency = info.get("currency")
-
-        # Award date + conclusion date from SettledContract
-        award_date = None
-        conclusion_date = None
-        if contract_ref_el is not None and contract_ref_el.text:
-            sc_ref = contract_ref_el.text.strip()
-            award_date = contract_dates.get(sc_ref)
-            conclusion_date = contract_conclusion.get(sc_ref)
-
-        if org_id:
-            awards.append(Award(
-                lot_id=lot_id,
-                contractor_org_id=org_id,
-                value=value,
-                currency=currency,
-                award_date=award_date,
-                conclusion_date=conclusion_date,
-            ))
-
+        awards.extend(_awards_for_lot_result(lr, index))
     return awards
