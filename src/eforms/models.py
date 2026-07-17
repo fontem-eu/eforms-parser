@@ -41,8 +41,20 @@ class Lot:
 
 
 @dataclass
-class Award:
-    """A lot-level award result linking a lot to a winning contractor."""
+class Award:  # pylint: disable=too-many-instance-attributes
+    """A lot-level award result linking a lot to one named contractor.
+
+    One Award is emitted per (LotResult × referenced LotTender × named
+    Tenderer). A single lot therefore yields several Awards when the
+    LotResult references several LotTenders (multi-supplier framework
+    agreements / ranked cascades) or when the winning TenderingParty is
+    a consortium of joint bidders.
+
+    The 11 fields are a flat record of one eForms award row — each is a
+    distinct published datum (identity, money, dates, rank, provenance
+    flags), not a candidate for grouping. Nesting them would force every
+    consumer through an artificial object hierarchy for no gain.
+    """
 
     lot_id: str
     contractor_org_id: str
@@ -51,6 +63,21 @@ class Award:
     award_date: str | None = None
     conclusion_date: str | None = None  # contract signing/conclusion date
     tenders_received: int | None = None  # bidder count for the award's lot
+    # Position in a ranked cascade (eForms `cbc:RankCode` on the
+    # LotTender). None when the notice does not rank its tenders.
+    rank: int | None = None
+    # Whether the referencing LotResult recorded this tender as selected
+    # (`cbc:TenderResultCode` == "selec-w"). Notices that omit the code
+    # predate the field and only ever record winners, so they default True.
+    is_winner: bool = True
+    tendering_party_id: str | None = None
+    # True when this contractor bid as part of a multi-member
+    # TenderingParty (consortium). Every member of the consortium carries
+    # the SAME `value` — the full tender price, which is not divisible
+    # across members by any published figure. Consumers aggregating money
+    # MUST deduplicate by (tendering_party_id, lot_id) rather than summing
+    # Awards, or consortium tenders inflate totals N-fold.
+    is_consortium_member: bool = False
 
 
 @dataclass
