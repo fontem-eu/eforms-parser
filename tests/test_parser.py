@@ -1,4 +1,9 @@
 """Tests for the main parser entry point using minimal XML fixtures."""
+from lxml import etree
+
+from eforms.extractors.organizations import extract_organizations
+from eforms.models import Award
+from eforms.namespaces import NS
 from eforms.parser import parse
 
 # Minimal Contract Award Notice XML — exercises all extractors
@@ -51,7 +56,7 @@ MINIMAL_CAN = b"""<?xml version="1.0" encoding="UTF-8"?>
           <efac:Company>
             <cac:PartyIdentification><cbc:ID>ORG-WINNER</cbc:ID></cac:PartyIdentification>
             <cac:PartyName><cbc:Name>SAP SE</cbc:Name></cac:PartyName>
-            <cac:PartyLegalEntity><cbc:CompanyID>DE143293625</cbc:CompanyID></cac:PartyLegalEntity>
+            <cac:PartyLegalEntity><cbc:CompanyID schemeName="VAT">DE143293625</cbc:CompanyID></cac:PartyLegalEntity>
             <cac:PostalAddress>
               <cbc:CityName>Walldorf</cbc:CityName>
               <cac:Country><cbc:IdentificationCode>DE</cbc:IdentificationCode></cac:Country>
@@ -109,8 +114,39 @@ def test_parse_organizations():
     notice = parse(MINIMAL_CAN)
     assert len(notice.organizations) == 2
     assert notice.organizations["ORG-BUYER"].name == "Bundesministerium des Innern"
-    assert notice.organizations["ORG-WINNER"].legal_id == "DE143293625"
+    lid = notice.organizations["ORG-WINNER"].legal_id
+    assert lid is not None
+    assert lid.value == "DE143293625"
+    # schemeName preserved from the XML attribute
+    assert lid.scheme_name == "VAT"
     assert notice.organizations["ORG-WINNER"].country == "DE"
+
+
+def test_parse_legal_id_without_scheme_name():
+    """When `cbc:CompanyID` has no @schemeName attribute, scheme_name is None
+    but value is still extracted faithfully."""
+    ns_decl = " ".join(f'xmlns:{p}="{u}"' for p, u in NS.items())
+    xml = f"""<?xml version="1.0"?>
+    <Root {ns_decl}>
+      <ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent>
+        <efext:EformsExtension>
+          <efac:Organizations>
+            <efac:Organization>
+              <efac:Company>
+                <cac:PartyIdentification><cbc:ID>ORG-X</cbc:ID></cac:PartyIdentification>
+                <cac:PartyName><cbc:Name>Bare ID Co</cbc:Name></cac:PartyName>
+                <cac:PartyLegalEntity><cbc:CompanyID>12345</cbc:CompanyID></cac:PartyLegalEntity>
+              </efac:Company>
+            </efac:Organization>
+          </efac:Organizations>
+        </efext:EformsExtension>
+      </ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions>
+    </Root>"""
+    orgs = extract_organizations(etree.fromstring(xml.encode()))
+    lid = orgs["ORG-X"].legal_id
+    assert lid is not None
+    assert lid.value == "12345"
+    assert lid.scheme_name is None
 
 
 def test_parse_buyer():
@@ -127,7 +163,8 @@ def test_parse_contractors():
     contractors = notice.contractors()
     assert len(contractors) == 1
     assert contractors[0].name == "SAP SE"
-    assert contractors[0].legal_id == "DE143293625"
+    assert contractors[0].legal_id is not None
+    assert contractors[0].legal_id.value == "DE143293625"
 
 
 def test_parse_awards():
@@ -142,6 +179,28 @@ def test_parse_awards():
     assert award.award_date == "2024-06-01"
 
 
+def test_parse_awards_single_winner_unchanged_by_fan_out():
+    """Regression: the single-winner path (one LotResult → one LotTender →
+    one Tenderer) must still yield exactly the same one Award after the
+    extractor was taught to fan out across multi-tender / consortium
+    results. This sample omits cbc:TenderResultCode and cbc:RankCode —
+    an unranked, implicitly-selected winner."""
+    award = parse(MINIMAL_CAN).awards[0]
+    assert award == Award(
+        lot_id="LOT-0001",
+        contractor_org_id="ORG-WINNER",
+        value=12500000.0,
+        currency="EUR",
+        award_date="2024-06-01",
+        conclusion_date=None,
+        tenders_received=None,
+        rank=None,
+        is_winner=True,
+        tendering_party_id="TPA-0001",
+        is_consortium_member=False,
+    )
+
+
 def test_parse_empty_xml():
     """Minimal XML with no content produces a Notice with empty fields."""
     xml = b"""<?xml version="1.0"?>
@@ -152,8 +211,8 @@ def test_parse_empty_xml():
     notice = parse(xml)
     assert notice.notice_id == "empty"
     assert notice.title is None
-    assert notice.organizations == {}
-    assert notice.awards == []
+    assert not notice.organizations
+    assert not notice.awards
 
 
 # Standalone fixture — regional-award XML with NUTS on both the notice's
@@ -216,3 +275,86 @@ def test_parse_returns_none_nuts_when_absent():
     assert notice.nuts is None
     for org in notice.organizations.values():
         assert org.nuts is None
+def test_parse_integrity_fields():
+    """Award criteria, submission deadline, framework flag and EU funding
+    are extracted from the standard eForms locations."""
+    ns_decl = " ".join(f'xmlns:{p}="{u}"' for p, u in NS.items())
+    xml = f"""<?xml version="1.0"?>
+    <Root {ns_decl}>
+      <cac:TenderingTerms>
+        <cac:AwardingTerms><cac:AwardingCriterion>
+          <cac:SubordinateAwardingCriterion>
+            <cbc:AwardingCriterionTypeCode listName="award-criterion-type">price</cbc:AwardingCriterionTypeCode>
+          </cac:SubordinateAwardingCriterion>
+          <cac:SubordinateAwardingCriterion>
+            <cbc:AwardingCriterionTypeCode listName="award-criterion-type">quality</cbc:AwardingCriterionTypeCode>
+          </cac:SubordinateAwardingCriterion>
+        </cac:AwardingCriterion></cac:AwardingTerms>
+      </cac:TenderingTerms>
+      <cac:TenderingProcess>
+        <cac:ContractingSystem>
+          <cbc:ContractingSystemTypeCode listName="framework-agreement">fa-wo-rc</cbc:ContractingSystemTypeCode>
+        </cac:ContractingSystem>
+        <cac:TenderSubmissionDeadlinePeriod><cbc:EndDate>2024-05-01+02:00</cbc:EndDate></cac:TenderSubmissionDeadlinePeriod>
+      </cac:TenderingProcess>
+      <ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent><efext:EformsExtension>
+        <efac:Funding><cbc:FundingProgramCode>EUFUNDS_RRF</cbc:FundingProgramCode></efac:Funding>
+      </efext:EformsExtension></ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions>
+    </Root>""".encode()
+    notice = parse(xml)
+    assert notice.award_criterion_type == "meat"   # price + quality → MEAT
+    assert notice.submission_deadline == "2024-05-01"
+    assert notice.is_framework is True
+    assert notice.eu_funded is True
+    assert notice.funding_programme == "EUFUNDS_RRF"
+
+
+def test_award_criterion_price_only():
+    ns_decl = " ".join(f'xmlns:{p}="{u}"' for p, u in NS.items())
+    xml = f"""<?xml version="1.0"?>
+    <Root {ns_decl}><cac:TenderingTerms><cac:AwardingTerms><cac:AwardingCriterion>
+      <cac:SubordinateAwardingCriterion>
+        <cbc:AwardingCriterionTypeCode listName="award-criterion-type">price</cbc:AwardingCriterionTypeCode>
+      </cac:SubordinateAwardingCriterion>
+    </cac:AwardingCriterion></cac:AwardingTerms></cac:TenderingTerms></Root>""".encode()
+    assert parse(xml).award_criterion_type == "price"
+
+
+def test_extract_lot_tender_counts():
+    from eforms.extractors.awards import extract_lot_tender_counts  # pylint: disable=import-outside-toplevel
+    ns_decl = " ".join(f'xmlns:{p}="{u}"' for p, u in NS.items())
+    xml = f"""<?xml version="1.0"?>
+    <Root {ns_decl}>
+      <ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent><efext:EformsExtension>
+        <efac:NoticeResult>
+          <efac:LotResult>
+            <efac:TenderLot><cbc:ID>LOT-0001</cbc:ID></efac:TenderLot>
+            <efac:ReceivedSubmissionsStatistics>
+              <efbc:StatisticsCode listName="received-submission-type">tenders</efbc:StatisticsCode>
+              <efbc:StatisticsNumeric>1</efbc:StatisticsNumeric>
+            </efac:ReceivedSubmissionsStatistics>
+          </efac:LotResult>
+        </efac:NoticeResult>
+      </efext:EformsExtension></ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions>
+    </Root>""".encode()
+    counts = extract_lot_tender_counts(etree.fromstring(xml))
+    assert counts == {"LOT-0001": 1}   # single bidder
+
+
+def test_zero_tenders_treated_as_unrecorded():
+    from eforms.extractors.awards import extract_lot_tender_counts  # pylint: disable=import-outside-toplevel
+    ns_decl = " ".join(f'xmlns:{p}="{u}"' for p, u in NS.items())
+    body = (
+        "<ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent>"
+        "<efext:EformsExtension><efac:NoticeResult><efac:LotResult>"
+        "<efac:TenderLot><cbc:ID>LOT-0001</cbc:ID></efac:TenderLot>"
+        "<efac:ReceivedSubmissionsStatistics>"
+        "<efbc:StatisticsCode listName=\"received-submission-type\">tenders</efbc:StatisticsCode>"
+        "<efbc:StatisticsNumeric>0</efbc:StatisticsNumeric>"
+        "</efac:ReceivedSubmissionsStatistics>"
+        "</efac:LotResult></efac:NoticeResult></efext:EformsExtension>"
+        "</ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions>"
+    )
+    xml = f'<?xml version="1.0"?><Root {ns_decl}>{body}</Root>'.encode()
+    # 0 received tenders on an awarded lot is contradictory -> not recorded.
+    assert not extract_lot_tender_counts(etree.fromstring(xml))

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import io
 import logging
-import os
 import tarfile
 import zipfile
 from collections.abc import Iterator

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from lxml import etree
 
-from ..models import Organization
+from ..models import LegalIdentifier, Organization
 from ..namespaces import NS
 
 _ORG_PATH = (
@@ -16,6 +16,11 @@ def extract_organizations(
     root: etree._Element,
 ) -> dict[str, Organization]:
     """Parse all organizations and return a dict keyed by org ID."""
+    # pylint: disable=too-many-locals
+    # Organization extraction reads ~15 optional UBL/EFAC subfields
+    # (id, name, address parts, legal id + scheme, contact); the
+    # locals correspond 1-to-1 to schema fields, splitting them off
+    # buys no clarity.
     result: dict[str, Organization] = {}
     for org_el in root.findall(_ORG_PATH, NS):
         company = org_el.find("efac:Company", NS)
@@ -39,14 +44,19 @@ def extract_organizations(
             else None
         )
 
+        # Preserve both the text content and the `@schemeName` attribute
+        # (which may label the value as "VAT", "national", "EORI", etc.).
+        # Consumers route on scheme_name; we don't interpret it here.
         legal_id_el = company.find(
             "cac:PartyLegalEntity/cbc:CompanyID", NS
         )
-        legal_id = (
-            legal_id_el.text.strip()
-            if legal_id_el is not None and legal_id_el.text
-            else None
-        )
+        if legal_id_el is not None and legal_id_el.text:
+            legal_id: LegalIdentifier | None = LegalIdentifier(
+                value=legal_id_el.text.strip(),
+                scheme_name=legal_id_el.get("schemeName"),
+            )
+        else:
+            legal_id = None
 
         address_parts = []
         for tag in ("cbc:StreetName", "cbc:CityName", "cbc:PostalZone"):

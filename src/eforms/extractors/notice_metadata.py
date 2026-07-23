@@ -15,7 +15,31 @@ def extract_notice_id(root: etree._Element) -> str | None:
 def extract_issue_date(root: etree._Element) -> str | None:
     """Extract notice issue date."""
     el = root.find("cbc:IssueDate", NS)
-    return el.text.strip() if el is not None and el.text else None
+    if el is not None and el.text:
+        return _clean_date(el.text.strip())
+    return None
+
+
+def extract_dispatch_date(root: etree._Element) -> str | None:
+    """Extract notice dispatch/transmission date (when sent to TED)."""
+    # Try TransmissionDate first (common in eForms)
+    for tag in ("cbc:TransmissionDate", "cbc:DispatchDate", ".//cbc:RequestedPublicationDate"):
+        el = root.find(tag, NS)
+        if el is not None and el.text:
+            return _clean_date(el.text.strip())
+    return None
+
+
+def _clean_date(raw: str) -> str | None:
+    """Clean a date string: strip timezone suffix, reject bogus sentinels."""
+    if not raw:
+        return None
+    # Strip timezone like '+02:00' or 'Z'
+    d = raw[:10]
+    # Reject sentinel dates (TED uses 2000-01-01 for 'unknown')
+    if d.startswith(("2000-01-01", "1900-01-01")):
+        return None
+    return d
 
 
 def extract_notice_type(root: etree._Element) -> str | None:
