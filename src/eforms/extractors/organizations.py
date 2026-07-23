@@ -65,11 +65,25 @@ def extract_organizations(
                 address_parts.append(el.text.strip())
         address = ", ".join(address_parts) if address_parts else None
 
+        # eForms tags the NUTS code with listName='nuts' on the address's
+        # CountrySubentityCode element. Buyers (contracting authorities)
+        # almost always carry one; contractors' addresses sometimes do.
+        nuts_el = company.find(
+            "cac:PostalAddress/cbc:CountrySubentityCode[@listName='nuts']",
+            NS,
+        )
+        nuts = (
+            nuts_el.text.strip()
+            if nuts_el is not None and nuts_el.text
+            else None
+        )
+
         result[org_id] = Organization(
             org_id=org_id,
             name=name,
             country=country,
             legal_id=legal_id,
             address=address,
+            nuts=nuts,
         )
     return result

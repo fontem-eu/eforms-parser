@@ -27,6 +27,7 @@ class Organization:
     country: str | None = None
     legal_id: LegalIdentifier | None = None
     address: str | None = None
+    nuts: str | None = None
 
 
 @dataclass
@@ -125,6 +126,8 @@ class Notice:  # pylint: disable=too-many-instance-attributes
     # is the publication-number of the notice this one modifies.
     modification_value_before: float | None = None
     modifies_publication_number: str | None = None
+    # Place-of-performance NUTS (from ProcurementProject/RealizedLocation).
+    nuts: str | None = None
     organizations: dict[str, Organization] = field(default_factory=dict)
     lots: list[Lot] = field(default_factory=list)
     awards: list[Award] = field(default_factory=list)

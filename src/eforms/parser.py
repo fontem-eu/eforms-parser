@@ -25,6 +25,7 @@ from .extractors.organizations import extract_organizations
 from .extractors.procedure import (
     extract_cpv_main,
     extract_description,
+    extract_nuts,
     extract_procedure_type,
     extract_title,
 )
@@ -74,6 +75,7 @@ def parse(xml_bytes: bytes) -> Notice:
         buyer_org_id=buyer_org_id,
         total_value=total_value,
         currency=currency,
+        nuts=extract_nuts(root),
         organizations=orgs,
         lots=extract_lots(root),
         awards=awards,
