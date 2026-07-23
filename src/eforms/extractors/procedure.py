@@ -39,3 +39,24 @@ def extract_procedure_type(root: etree._Element) -> str | None:
         NS,
     )
     return el.text.strip() if el is not None and el.text else None
+
+def extract_nuts(root: etree._Element) -> str | None:
+    """Extract the place-of-performance NUTS code.
+
+    eForms puts the location under ``ProcurementProject/RealizedLocation``.
+    Some notices repeat the same NUTS on every lot; if the procurement-
+    project location isn't set we fall back to the first lot's location.
+    A regional-only notice can carry only the country half — treat those
+    as no NUTS and let the country column handle it.
+    """
+    for xpath in (
+        ".//cac:ProcurementProject/cac:RealizedLocation"
+        "/cac:Address/cbc:CountrySubentityCode[@listName='nuts']",
+        ".//cac:ProcurementProjectLot/cac:ProcurementProject"
+        "/cac:RealizedLocation/cac:Address"
+        "/cbc:CountrySubentityCode[@listName='nuts']",
+    ):
+        el = root.find(xpath, NS)
+        if el is not None and el.text and el.text.strip():
+            return el.text.strip()
+    return None

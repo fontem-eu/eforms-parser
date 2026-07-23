@@ -13,6 +13,7 @@ class Organization:
     country: str | None = None
     legal_id: str | None = None
     address: str | None = None
+    nuts: str | None = None
 
 
 @dataclass
@@ -52,6 +53,7 @@ class Notice:
     buyer_org_id: str | None = None
     total_value: float | None = None
     currency: str | None = None
+    nuts: str | None = None
     organizations: dict[str, Organization] = field(default_factory=dict)
     lots: list[Lot] = field(default_factory=list)
     awards: list[Award] = field(default_factory=list)

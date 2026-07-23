@@ -154,3 +154,65 @@ def test_parse_empty_xml():
     assert notice.title is None
     assert notice.organizations == {}
     assert notice.awards == []
+
+
+# Standalone fixture — regional-award XML with NUTS on both the notice's
+# place-of-performance and on the buyer authority's postal address.
+MINIMAL_CAN_WITH_NUTS = b"""<?xml version="1.0" encoding="UTF-8"?>
+<ContractAwardNotice
+    xmlns="urn:oasis:names:specification:ubl:schema:xsd:ContractAwardNotice-2"
+    xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+    xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+    xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2"
+    xmlns:efac="http://data.europa.eu/p27/eforms-ubl-extension-aggregate-components/1"
+    xmlns:efext="http://data.europa.eu/p27/eforms-ubl-extensions/1">
+  <cbc:ID>notice-uuid-nuts</cbc:ID>
+  <cac:ProcurementProject>
+    <cbc:Name>Regional road works</cbc:Name>
+    <cac:RealizedLocation>
+      <cac:Address>
+        <cbc:CountrySubentityCode listName="nuts">PT170</cbc:CountrySubentityCode>
+      </cac:Address>
+    </cac:RealizedLocation>
+  </cac:ProcurementProject>
+  <ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent>
+    <efext:EformsExtension>
+      <efac:Organizations>
+        <efac:Organization>
+          <efac:Company>
+            <cac:PartyIdentification><cbc:ID>ORG-CM</cbc:ID></cac:PartyIdentification>
+            <cac:PartyName><cbc:Name>Camara Municipal de Lisboa</cbc:Name></cac:PartyName>
+            <cac:PostalAddress>
+              <cbc:CityName>Lisboa</cbc:CityName>
+              <cbc:CountrySubentityCode listName="nuts">PT170</cbc:CountrySubentityCode>
+              <cac:Country><cbc:IdentificationCode>PT</cbc:IdentificationCode></cac:Country>
+            </cac:PostalAddress>
+          </efac:Company>
+        </efac:Organization>
+      </efac:Organizations>
+    </efext:EformsExtension>
+  </ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions>
+</ContractAwardNotice>
+"""
+
+
+def test_parse_extracts_place_of_performance_nuts():
+    """NUTS on the ProcurementProject's RealizedLocation lands on Notice.nuts."""
+    notice = parse(MINIMAL_CAN_WITH_NUTS)
+    assert notice.nuts == "PT170"
+
+
+def test_parse_extracts_authority_nuts_from_postal_address():
+    """NUTS on the contracting authority's PostalAddress lands on Organization.nuts."""
+    notice = parse(MINIMAL_CAN_WITH_NUTS)
+    org = notice.organizations.get("ORG-CM")
+    assert org is not None
+    assert org.nuts == "PT170"
+
+
+def test_parse_returns_none_nuts_when_absent():
+    """MINIMAL_CAN has no CountrySubentityCode anywhere — both fields stay None."""
+    notice = parse(MINIMAL_CAN)
+    assert notice.nuts is None
+    for org in notice.organizations.values():
+        assert org.nuts is None
