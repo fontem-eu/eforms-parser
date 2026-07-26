@@ -37,10 +37,39 @@ def extract_total_value(root: etree._Element) -> tuple[float | None, str | None]
     return value, currency
 
 
+def _lot_total_submissions(lot_result: etree._Element) -> int | None:
+    """The lot's received-tenders total, if the notice publishes one.
+
+    Buyers publish the received-submission statistics under different
+    codes of the same codelist: "tenders" is the plain total, but a
+    large share of notices (audited 2026-07-26: 7 of 8 sampled
+    missing-count notices across FR/PL/PT/DE) carry only "t-esubm" —
+    the electronic-submissions total. E-submission is mandatory for
+    covered EU procurement, so when "tenders" is absent, "t-esubm" is
+    the total in practice. The plain total wins when both exist;
+    sub-group codes (t-sme, t-micro, ...) are never used as the total.
+    Zero on an awarded lot is contradictory (you can't award a tender
+    nobody bid on) — an incomplete-statistics artifact, skipped.
+    """
+    plain = electronic = None
+    for stat in lot_result.findall("efac:ReceivedSubmissionsStatistics", NS):
+        code = (stat.findtext(
+            "efbc:StatisticsCode", default="", namespaces=NS) or "").strip().lower()
+        num = (stat.findtext(
+            "efbc:StatisticsNumeric", default="", namespaces=NS) or "").strip()
+        if not num.isdigit() or int(num) <= 0:
+            continue
+        if code == "tenders" and plain is None:
+            plain = int(num)
+        elif code == "t-esubm" and electronic is None:
+            electronic = int(num)
+    return plain if plain is not None else electronic
+
+
 def extract_lot_tender_counts(root: etree._Element) -> dict[str, int]:
     """lot_id -> number of tenders received, from each LotResult's
-    ReceivedSubmissionsStatistics (the 'tenders' total). Drives the
-    single-bidder indicator."""
+    ReceivedSubmissionsStatistics. Drives the single-bidder indicator;
+    total resolution rules live in :func:`_lot_total_submissions`."""
     counts: dict[str, int] = {}
     result_el = root.find(_RESULT_PATH, NS)
     if result_el is None:
@@ -49,37 +78,9 @@ def extract_lot_tender_counts(root: etree._Element) -> dict[str, int]:
         lot_id_el = lot_result.find("efac:TenderLot/cbc:ID", NS)
         if lot_id_el is None or not lot_id_el.text:
             continue
-        lot_id = lot_id_el.text.strip()
-        # Buyers publish the received-submission statistics under
-        # different codes of the same codelist: "tenders" is the plain
-        # total, but a large share of notices (audited 2026-07-26: 7 of
-        # 8 sampled missing-count notices across FR/PL/PT/DE) carry only
-        # "t-esubm" — the electronic-submissions total. E-submission is
-        # mandatory for covered EU procurement, so when "tenders" is
-        # absent, "t-esubm" is the total in practice. Accepting only
-        # "tenders" silently dropped the count for those notices and
-        # produced the 2024+ coverage cliff. Preference order: the plain
-        # total wins; the electronic total is the fallback. Sub-group
-        # codes (t-sme, t-micro, ...) are never used as the total.
-        plain = electronic = None
-        for stat in lot_result.findall("efac:ReceivedSubmissionsStatistics", NS):
-            code = (stat.findtext(
-                "efbc:StatisticsCode", default="", namespaces=NS) or "").strip().lower()
-            num = (stat.findtext(
-                "efbc:StatisticsNumeric", default="", namespaces=NS) or "").strip()
-            if not num.isdigit() or int(num) <= 0:
-                # 0 received tenders on an awarded lot is contradictory
-                # (you can't award a tender nobody bid on) — it's an
-                # incomplete-statistics artifact, so treat it as "not
-                # recorded" (skip) rather than a real zero.
-                continue
-            if code == "tenders" and plain is None:
-                plain = int(num)
-            elif code == "t-esubm" and electronic is None:
-                electronic = int(num)
-        best = plain if plain is not None else electronic
-        if best is not None:
-            counts[lot_id] = best
+        total = _lot_total_submissions(lot_result)
+        if total is not None:
+            counts[lot_id_el.text.strip()] = total
     return counts
 
 
