@@ -50,18 +50,36 @@ def extract_lot_tender_counts(root: etree._Element) -> dict[str, int]:
         if lot_id_el is None or not lot_id_el.text:
             continue
         lot_id = lot_id_el.text.strip()
+        # Buyers publish the received-submission statistics under
+        # different codes of the same codelist: "tenders" is the plain
+        # total, but a large share of notices (audited 2026-07-26: 7 of
+        # 8 sampled missing-count notices across FR/PL/PT/DE) carry only
+        # "t-esubm" — the electronic-submissions total. E-submission is
+        # mandatory for covered EU procurement, so when "tenders" is
+        # absent, "t-esubm" is the total in practice. Accepting only
+        # "tenders" silently dropped the count for those notices and
+        # produced the 2024+ coverage cliff. Preference order: the plain
+        # total wins; the electronic total is the fallback. Sub-group
+        # codes (t-sme, t-micro, ...) are never used as the total.
+        plain = electronic = None
         for stat in lot_result.findall("efac:ReceivedSubmissionsStatistics", NS):
             code = (stat.findtext(
                 "efbc:StatisticsCode", default="", namespaces=NS) or "").strip().lower()
             num = (stat.findtext(
                 "efbc:StatisticsNumeric", default="", namespaces=NS) or "").strip()
-            if code == "tenders" and num.isdigit() and int(num) > 0:
+            if not num.isdigit() or int(num) <= 0:
                 # 0 received tenders on an awarded lot is contradictory
                 # (you can't award a tender nobody bid on) — it's an
                 # incomplete-statistics artifact, so treat it as "not
                 # recorded" (skip) rather than a real zero.
-                counts[lot_id] = int(num)
-                break
+                continue
+            if code == "tenders" and plain is None:
+                plain = int(num)
+            elif code == "t-esubm" and electronic is None:
+                electronic = int(num)
+        best = plain if plain is not None else electronic
+        if best is not None:
+            counts[lot_id] = best
     return counts
 
 

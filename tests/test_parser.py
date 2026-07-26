@@ -358,3 +358,92 @@ def test_zero_tenders_treated_as_unrecorded():
     xml = f'<?xml version="1.0"?><Root {ns_decl}>{body}</Root>'.encode()
     # 0 received tenders on an awarded lot is contradictory -> not recorded.
     assert not extract_lot_tender_counts(etree.fromstring(xml))
+
+
+NSMAP_MIN = (
+    'xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:'
+    'CommonAggregateComponents-2" '
+    'xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:'
+    'CommonBasicComponents-2" '
+    'xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:'
+    'CommonExtensionComponents-2" '
+    'xmlns:efac="http://data.europa.eu/p27/eforms-ubl-extension-aggregate-components/1" '
+    'xmlns:efbc="http://data.europa.eu/p27/eforms-ubl-extension-basic-components/1" '
+    'xmlns:efext="http://data.europa.eu/p27/eforms-ubl-extensions/1"'
+)
+
+
+def _stats_notice(stats_xml: str) -> bytes:
+    """Minimal ContractAwardNotice wrapping one LotResult's statistics."""
+    return f'''<?xml version="1.0" encoding="UTF-8"?>
+<ContractAwardNotice xmlns="urn:oasis:names:specification:ubl:schema:xsd:ContractAwardNotice-2" {NSMAP_MIN}>
+  <ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent>
+    <efext:EformsExtension><efac:NoticeResult>
+      <efac:LotResult>
+        <efac:TenderLot><cbc:ID schemeName="Lot">LOT-0001</cbc:ID></efac:TenderLot>
+        {stats_xml}
+      </efac:LotResult>
+    </efac:NoticeResult></efext:EformsExtension>
+  </ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions>
+</ContractAwardNotice>'''.encode()
+
+
+def test_tender_counts_accepts_t_esubm_fallback():
+    # Real-world shape (audit 2026-07-26, e.g. TED 449053-2026): only the
+    # electronic-submissions total is published. It must be used.
+    from eforms.extractors.awards import extract_lot_tender_counts
+    from lxml import etree
+    xml = _stats_notice(
+        '<efac:ReceivedSubmissionsStatistics>'
+        '<efbc:StatisticsCode listName="received-submission-type">t-esubm'
+        '</efbc:StatisticsCode>'
+        '<efbc:StatisticsNumeric>4</efbc:StatisticsNumeric>'
+        '</efac:ReceivedSubmissionsStatistics>')
+    counts = extract_lot_tender_counts(etree.fromstring(xml))
+    assert counts == {"LOT-0001": 4}
+
+
+def test_tender_counts_plain_total_beats_electronic():
+    from eforms.extractors.awards import extract_lot_tender_counts
+    from lxml import etree
+    xml = _stats_notice(
+        '<efac:ReceivedSubmissionsStatistics>'
+        '<efbc:StatisticsCode listName="received-submission-type">t-esubm'
+        '</efbc:StatisticsCode>'
+        '<efbc:StatisticsNumeric>3</efbc:StatisticsNumeric>'
+        '</efac:ReceivedSubmissionsStatistics>'
+        '<efac:ReceivedSubmissionsStatistics>'
+        '<efbc:StatisticsCode listName="received-submission-type">tenders'
+        '</efbc:StatisticsCode>'
+        '<efbc:StatisticsNumeric>5</efbc:StatisticsNumeric>'
+        '</efac:ReceivedSubmissionsStatistics>')
+    counts = extract_lot_tender_counts(etree.fromstring(xml))
+    assert counts == {"LOT-0001": 5}
+
+
+def test_tender_counts_subgroup_codes_never_count():
+    # t-sme is a subgroup, not a total — a notice publishing only
+    # subgroups still has no usable count.
+    from eforms.extractors.awards import extract_lot_tender_counts
+    from lxml import etree
+    xml = _stats_notice(
+        '<efac:ReceivedSubmissionsStatistics>'
+        '<efbc:StatisticsCode listName="received-submission-type">t-sme'
+        '</efbc:StatisticsCode>'
+        '<efbc:StatisticsNumeric>2</efbc:StatisticsNumeric>'
+        '</efac:ReceivedSubmissionsStatistics>')
+    counts = extract_lot_tender_counts(etree.fromstring(xml))
+    assert counts == {}
+
+
+def test_tender_counts_zero_still_skipped():
+    from eforms.extractors.awards import extract_lot_tender_counts
+    from lxml import etree
+    xml = _stats_notice(
+        '<efac:ReceivedSubmissionsStatistics>'
+        '<efbc:StatisticsCode listName="received-submission-type">t-esubm'
+        '</efbc:StatisticsCode>'
+        '<efbc:StatisticsNumeric>0</efbc:StatisticsNumeric>'
+        '</efac:ReceivedSubmissionsStatistics>')
+    counts = extract_lot_tender_counts(etree.fromstring(xml))
+    assert counts == {}
