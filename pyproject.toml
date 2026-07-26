@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eforms-parser"
-version = "0.9.0"
+version = "0.9.1"
 description = "Streaming parser for EU eForms procurement XML (TED/OJ S)"
 requires-python = ">=3.11"
 dependencies = ["lxml>=6.1.1"]
