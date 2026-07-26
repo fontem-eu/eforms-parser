@@ -391,8 +391,7 @@ def _stats_notice(stats_xml: str) -> bytes:
 def test_tender_counts_accepts_t_esubm_fallback():
     # Real-world shape (audit 2026-07-26, e.g. TED 449053-2026): only the
     # electronic-submissions total is published. It must be used.
-    from eforms.extractors.awards import extract_lot_tender_counts
-    from lxml import etree
+    from eforms.extractors.awards import extract_lot_tender_counts  # pylint: disable=import-outside-toplevel
     xml = _stats_notice(
         '<efac:ReceivedSubmissionsStatistics>'
         '<efbc:StatisticsCode listName="received-submission-type">t-esubm'
@@ -404,8 +403,7 @@ def test_tender_counts_accepts_t_esubm_fallback():
 
 
 def test_tender_counts_plain_total_beats_electronic():
-    from eforms.extractors.awards import extract_lot_tender_counts
-    from lxml import etree
+    from eforms.extractors.awards import extract_lot_tender_counts  # pylint: disable=import-outside-toplevel
     xml = _stats_notice(
         '<efac:ReceivedSubmissionsStatistics>'
         '<efbc:StatisticsCode listName="received-submission-type">t-esubm'
@@ -424,8 +422,7 @@ def test_tender_counts_plain_total_beats_electronic():
 def test_tender_counts_subgroup_codes_never_count():
     # t-sme is a subgroup, not a total — a notice publishing only
     # subgroups still has no usable count.
-    from eforms.extractors.awards import extract_lot_tender_counts
-    from lxml import etree
+    from eforms.extractors.awards import extract_lot_tender_counts  # pylint: disable=import-outside-toplevel
     xml = _stats_notice(
         '<efac:ReceivedSubmissionsStatistics>'
         '<efbc:StatisticsCode listName="received-submission-type">t-sme'
@@ -437,8 +434,7 @@ def test_tender_counts_subgroup_codes_never_count():
 
 
 def test_tender_counts_zero_still_skipped():
-    from eforms.extractors.awards import extract_lot_tender_counts
-    from lxml import etree
+    from eforms.extractors.awards import extract_lot_tender_counts  # pylint: disable=import-outside-toplevel
     xml = _stats_notice(
         '<efac:ReceivedSubmissionsStatistics>'
         '<efbc:StatisticsCode listName="received-submission-type">t-esubm'
