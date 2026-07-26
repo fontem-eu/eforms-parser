@@ -5,6 +5,7 @@ from eforms.extractors.organizations import extract_organizations
 from eforms.models import Award
 from eforms.namespaces import NS
 from eforms.parser import parse
+from eforms.extractors.awards import extract_lot_tender_counts
 
 # Minimal Contract Award Notice XML — exercises all extractors
 MINIMAL_CAN = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -321,7 +322,6 @@ def test_award_criterion_price_only():
 
 
 def test_extract_lot_tender_counts():
-    from eforms.extractors.awards import extract_lot_tender_counts  # pylint: disable=import-outside-toplevel
     ns_decl = " ".join(f'xmlns:{p}="{u}"' for p, u in NS.items())
     xml = f"""<?xml version="1.0"?>
     <Root {ns_decl}>
@@ -342,7 +342,6 @@ def test_extract_lot_tender_counts():
 
 
 def test_zero_tenders_treated_as_unrecorded():
-    from eforms.extractors.awards import extract_lot_tender_counts  # pylint: disable=import-outside-toplevel
     ns_decl = " ".join(f'xmlns:{p}="{u}"' for p, u in NS.items())
     body = (
         "<ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent>"
@@ -365,8 +364,8 @@ NSMAP_MIN = (
     'CommonAggregateComponents-2" '
     'xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:'
     'CommonBasicComponents-2" '
-    'xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:'
-    'CommonExtensionComponents-2" '
+    'xmlns:ext="urn:oasis:names:specification:ubl:'
+    'schema:xsd:CommonExtensionComponents-2" '
     'xmlns:efac="http://data.europa.eu/p27/eforms-ubl-extension-aggregate-components/1" '
     'xmlns:efbc="http://data.europa.eu/p27/eforms-ubl-extension-basic-components/1" '
     'xmlns:efext="http://data.europa.eu/p27/eforms-ubl-extensions/1"'
@@ -376,7 +375,9 @@ NSMAP_MIN = (
 def _stats_notice(stats_xml: str) -> bytes:
     """Minimal ContractAwardNotice wrapping one LotResult's statistics."""
     return f'''<?xml version="1.0" encoding="UTF-8"?>
-<ContractAwardNotice xmlns="urn:oasis:names:specification:ubl:schema:xsd:ContractAwardNotice-2" {NSMAP_MIN}>
+<ContractAwardNotice
+  xmlns="urn:oasis:names:specification:ubl:schema:xsd:ContractAwardNotice-2"
+  {NSMAP_MIN}>
   <ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent>
     <efext:EformsExtension><efac:NoticeResult>
       <efac:LotResult>
@@ -391,7 +392,6 @@ def _stats_notice(stats_xml: str) -> bytes:
 def test_tender_counts_accepts_t_esubm_fallback():
     # Real-world shape (audit 2026-07-26, e.g. TED 449053-2026): only the
     # electronic-submissions total is published. It must be used.
-    from eforms.extractors.awards import extract_lot_tender_counts  # pylint: disable=import-outside-toplevel
     xml = _stats_notice(
         '<efac:ReceivedSubmissionsStatistics>'
         '<efbc:StatisticsCode listName="received-submission-type">t-esubm'
@@ -403,7 +403,6 @@ def test_tender_counts_accepts_t_esubm_fallback():
 
 
 def test_tender_counts_plain_total_beats_electronic():
-    from eforms.extractors.awards import extract_lot_tender_counts  # pylint: disable=import-outside-toplevel
     xml = _stats_notice(
         '<efac:ReceivedSubmissionsStatistics>'
         '<efbc:StatisticsCode listName="received-submission-type">t-esubm'
@@ -422,7 +421,6 @@ def test_tender_counts_plain_total_beats_electronic():
 def test_tender_counts_subgroup_codes_never_count():
     # t-sme is a subgroup, not a total — a notice publishing only
     # subgroups still has no usable count.
-    from eforms.extractors.awards import extract_lot_tender_counts  # pylint: disable=import-outside-toplevel
     xml = _stats_notice(
         '<efac:ReceivedSubmissionsStatistics>'
         '<efbc:StatisticsCode listName="received-submission-type">t-sme'
@@ -430,11 +428,10 @@ def test_tender_counts_subgroup_codes_never_count():
         '<efbc:StatisticsNumeric>2</efbc:StatisticsNumeric>'
         '</efac:ReceivedSubmissionsStatistics>')
     counts = extract_lot_tender_counts(etree.fromstring(xml))
-    assert counts == {}
+    assert not counts
 
 
 def test_tender_counts_zero_still_skipped():
-    from eforms.extractors.awards import extract_lot_tender_counts  # pylint: disable=import-outside-toplevel
     xml = _stats_notice(
         '<efac:ReceivedSubmissionsStatistics>'
         '<efbc:StatisticsCode listName="received-submission-type">t-esubm'
@@ -442,4 +439,4 @@ def test_tender_counts_zero_still_skipped():
         '<efbc:StatisticsNumeric>0</efbc:StatisticsNumeric>'
         '</efac:ReceivedSubmissionsStatistics>')
     counts = extract_lot_tender_counts(etree.fromstring(xml))
-    assert counts == {}
+    assert not counts
