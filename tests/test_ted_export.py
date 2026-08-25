@@ -316,3 +316,14 @@ def test_real_oldgen_award_has_a_buyer():
 def test_f03_buyer_still_resolves():
     """The old-gen buyer lookup is a fallback, never a replacement."""
     assert parse(_fixture(SOLE_WINNER)).buyer() is not None
+
+
+def test_legacy_export_populates_publication_date():
+    """Legacy TED exports carry only DATE_PUB — it fills publication_date too.
+
+    Consumers reading ``publication_date`` must get a real answer on the
+    legacy path as well, not None, so a mixed-era corpus stays comparable.
+    """
+    notice = parse_ted_export(_root(MODIFICATION_F20))
+    assert notice.publication_date == "2024-01-15"
+    assert notice.publication_date == notice.issue_date

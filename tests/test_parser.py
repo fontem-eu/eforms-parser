@@ -1,4 +1,7 @@
 """Tests for the main parser entry point using minimal XML fixtures."""
+from pathlib import Path
+
+import pytest
 from lxml import etree
 
 from eforms.extractors.organizations import extract_organizations
@@ -440,3 +443,48 @@ def test_tender_counts_zero_still_skipped():
         '</efac:ReceivedSubmissionsStatistics>')
     counts = extract_lot_tender_counts(etree.fromstring(xml))
     assert not counts
+
+
+# ── Notice publication date ────────────────────────────────────────────────
+# ``cbc:IssueDate`` is when the buyer issued the notice; ``efbc:PublicationDate``
+# is when TED actually published it. They are routinely days — occasionally
+# more than a year — apart, so anything answering "when did this become
+# public" has to read the publication date.
+
+_PD_FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.mark.parametrize(
+    "fixture,issue,published",
+    [
+        ("eforms_can_consortium_3_tenderers_324264-2024.xml",
+         "2024-05-31", "2024-06-03"),
+        ("eforms_can_framework_multi_supplier_324249-2024.xml",
+         "2024-05-31", "2024-06-03"),
+        ("eforms_can_many_tenders_few_named_324192-2024.xml",
+         "2024-05-31", "2024-06-03"),
+    ],
+)
+def test_publication_date_is_distinct_from_issue_date(fixture, issue, published):
+    """Real TED notices: publication date is parsed and is not the issue date."""
+    notice = parse((_PD_FIXTURES / fixture).read_bytes())
+    assert notice.issue_date == issue
+    assert notice.publication_date == published
+    assert notice.publication_date > notice.issue_date
+
+
+def test_publication_date_absent_when_ted_has_not_published():
+    """Buyer-authored XML with no TED publication block yields None."""
+    notice = parse(MINIMAL_CAN)
+    assert notice.issue_date == "2024-06-15"
+    assert notice.publication_date is None
+
+
+def test_publication_date_strips_timezone_suffix():
+    """TED stamps publication dates with an offset ('2024-06-03Z')."""
+    notice = parse(
+        (_PD_FIXTURES / "eforms_can_consortium_3_tenderers_324264-2024.xml")
+        .read_bytes()
+    )
+    assert notice.publication_date == "2024-06-03"
+    assert "Z" not in notice.publication_date
