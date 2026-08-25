@@ -110,6 +110,7 @@ class Notice:  # pylint: disable=too-many-instance-attributes
     procedure_type: str | None = None
     issue_date: str | None = None
     dispatch_date: str | None = None  # when notice was sent to TED
+    publication_date: str | None = None  # when TED published it
     buyer_org_id: str | None = None
     total_value: float | None = None
     currency: str | None = None

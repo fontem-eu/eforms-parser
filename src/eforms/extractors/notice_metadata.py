@@ -30,6 +30,21 @@ def extract_dispatch_date(root: etree._Element) -> str | None:
     return None
 
 
+def extract_publication_date(root: etree._Element) -> str | None:
+    """Extract the date TED published the notice (OJS publication).
+
+    This is ``efbc:PublicationDate`` from the TED-assigned publication
+    block, which is distinct from ``cbc:IssueDate`` (the date the buyer
+    issued/dispatched the notice) and typically falls a day or so later.
+    Consumers that mean "when did this become public" want this one.
+    Absent from buyer-authored XML that TED has not published yet.
+    """
+    el = root.find(".//efbc:PublicationDate", NS)
+    if el is not None and el.text:
+        return _clean_date(el.text.strip())
+    return None
+
+
 def _clean_date(raw: str) -> str | None:
     """Clean a date string: strip timezone suffix, reject bogus sentinels."""
     if not raw:

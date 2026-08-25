@@ -386,6 +386,9 @@ def parse_ted_export(root: etree._Element) -> Notice:
     coded = _first(root, "CODED_DATA_SECTION")
     notice_country = _country(coded, None)
     own_ojs = _text(_first(coded, "NO_DOC_OJS")) or _text(_first(root, "NO_DOC_OJS"))
+    # DATE_PUB is the OJS publication date. Legacy TED exports carry no
+    # separate buyer issue date, so it populates both fields: consumers
+    # asking for publication get the right answer on either ingest path.
     issue_date = _fmt_date(_text(_first(coded, "DATE_PUB")))
 
     doc_type = _first(root, "TD_DOCUMENT_TYPE")
@@ -409,6 +412,7 @@ def parse_ted_export(root: etree._Element) -> Notice:
         title=_text(_first(form, "TITLE")),
         cpv_main=cpv.get("CODE") if cpv is not None else None,
         issue_date=issue_date,
+        publication_date=issue_date,
         buyer_org_id=buyer_org_id,
         total_value=total_value,
         currency=currency,
