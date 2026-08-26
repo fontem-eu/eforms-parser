@@ -8,7 +8,7 @@ jobs:
   test:
     runs-on: python
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install package + dev extras
         env:
           PIP_INDEX_URL: https://nexus.void42.internal/repository/pypi-proxy/simple/
@@ -30,7 +30,7 @@ jobs:
     needs: test
     runs-on: python
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Install + coverage
         env:
           PIP_INDEX_URL: https://nexus.void42.internal/repository/pypi-proxy/simple/
@@ -40,7 +40,7 @@ jobs:
           pip install --no-cache-dir --no-build-isolation -e '.[dev]'
           pip install --no-cache-dir pytest-cov cyclonedx-bom
           python3 -m pytest tests/ -q --cov=src --cov-report=xml:coverage.xml || true
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           repository: void42/ci-actions
           path: .ci-actions
