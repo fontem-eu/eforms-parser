@@ -15,6 +15,11 @@ from .extractors.notice_metadata import (
     extract_publication_date,
     extract_notice_id,
     extract_notice_type,
+    extract_publication_number,
+    extract_procedure_id,
+    extract_notice_version,
+    extract_changed_notice_identifier,
+    split_back_link,
 )
 from .extractors.integrity import (
     extract_award_criterion_type,
@@ -63,6 +68,8 @@ def parse(xml_bytes: bytes) -> Notice:
     for award in awards:
         award.tenders_received = tender_counts.get(award.lot_id)
     eu_funded, funding_programme = extract_eu_funding(root)
+    back_link = extract_changed_notice_identifier(root)
+    modifies_publication_number, modifies_notice_id = split_back_link(back_link)
 
     return Notice(
         notice_id=extract_notice_id(root) or "",
@@ -74,6 +81,11 @@ def parse(xml_bytes: bytes) -> Notice:
         issue_date=extract_issue_date(root),
         dispatch_date=extract_dispatch_date(root),
         publication_date=extract_publication_date(root),
+        publication_number=extract_publication_number(root),
+        procedure_id=extract_procedure_id(root),
+        notice_version=extract_notice_version(root),
+        modifies_publication_number=modifies_publication_number,
+        modifies_notice_id=modifies_notice_id,
         buyer_org_id=buyer_org_id,
         total_value=total_value,
         currency=currency,

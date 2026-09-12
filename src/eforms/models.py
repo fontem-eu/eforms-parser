@@ -127,6 +127,19 @@ class Notice:  # pylint: disable=too-many-instance-attributes
     # is the publication-number of the notice this one modifies.
     modification_value_before: float | None = None
     modifies_publication_number: str | None = None
+    # Identity stamps, read from the notice itself (2026-09, single ingest
+    # path). procedure_id is BT-04, the ContractFolderID every notice of one
+    # procedure shares — contract identity. notice_version is BT-757, so a
+    # loader can skip "already at this version" rather than "already seen".
+    # modifies_notice_id is the back-link in its other form: when a buyer
+    # wrote the previous notice's versioned UUID instead of a publication
+    # number, this holds the bare UUID the graph indexes on.
+    procedure_id: str | None = None
+    notice_version: str | None = None
+    modifies_notice_id: str | None = None
+    # Pre-eForms only: the reference number the authority gave the procedure
+    # (S-form II.1.1). Kept, indexed and queryable — never the key.
+    legacy_procedure_id: str | None = None
     # Place-of-performance NUTS (from ProcurementProject/RealizedLocation).
     nuts: str | None = None
     organizations: dict[str, Organization] = field(default_factory=dict)

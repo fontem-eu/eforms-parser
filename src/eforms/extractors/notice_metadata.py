@@ -1,6 +1,8 @@
 """Extract top-level notice metadata (ID, type, dates)."""
 from __future__ import annotations
 
+import re
+
 from lxml import etree
 
 from ..namespaces import NS
@@ -63,3 +65,90 @@ def extract_notice_type(root: etree._Element) -> str | None:
         ".//cbc:NoticeTypeCode", NS
     )
     return el.text.strip() if el is not None and el.text else None
+
+
+# ---------------------------------------------------------------------------
+# Identity stamps read from the notice itself.
+#
+# Until 2026-09 these four came only from TED's search API, stamped onto the
+# event by the incremental loader; the monthly-archive path had none of
+# them, so an award loaded from an archive was keyed by its notice UUID and
+# a later modification (search path, keyed by procedure) could never join
+# it. Every one of them is in the XML. Reading them here is what makes one
+# ingest path possible: the search API becomes discovery, not a data source.
+# ---------------------------------------------------------------------------
+
+# No leading "0*" group: "0*" and "\d+" overlap, which is a backtracking
+# hazard (Sonar S5852). int() strips the zero padding instead.
+_PUB_NUMBER = re.compile(r"^(\d+)-(\d{4})$")
+_UUID_VERSION = re.compile(
+    r"^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-(\d{2})$",
+    re.I,
+)
+
+
+def normalise_publication_number(raw: str | None) -> str | None:
+    """TED's own form of a publication number, ``NNNNNN-YYYY``.
+
+    The XML carries it zero-padded to eight digits (``00540529-2026``);
+    the search API, the graph and every back-link use the unpadded form.
+    A value whose number is all zeros is a buyer placeholder, returned
+    verbatim so it stays recognisable as one rather than becoming ``0-2026``.
+    """
+    if not raw:
+        return None
+    raw = raw.strip()
+    m = _PUB_NUMBER.match(raw)
+    if not m or int(m.group(1)) == 0:
+        return raw or None
+    return f"{int(m.group(1))}-{m.group(2)}"
+
+
+def extract_publication_number(root: etree._Element) -> str | None:
+    """BT-? ``efbc:NoticePublicationID`` — the OJS publication number TED
+    assigned. Absent from buyer-authored XML TED has not published yet."""
+    el = root.find(".//efbc:NoticePublicationID", NS)
+    return normalise_publication_number(el.text) if el is not None and el.text else None
+
+
+def extract_notice_version(root: etree._Element) -> str | None:
+    """BT-757 ``cbc:VersionID`` at root level (``01``, ``02``…). Together
+    with the notice id it names one published version, which is the
+    unit an idempotent loader should skip on — not the id alone."""
+    el = root.find("cbc:VersionID", NS)
+    return el.text.strip() if el is not None and el.text else None
+
+
+def extract_procedure_id(root: etree._Element) -> str | None:
+    """BT-04 ``cbc:ContractFolderID`` — the procedure identifier shared by
+    every notice of one procedure: the call, the award, each modification.
+    This is contract identity."""
+    el = root.find("cbc:ContractFolderID", NS)
+    return el.text.strip() if el is not None and el.text else None
+
+
+def extract_changed_notice_identifier(root: etree._Element) -> str | None:
+    """BT-1501 ``efbc:ChangedNoticeIdentifier`` on a modification notice:
+    what it modifies. TED lets buyers write either the previous notice's
+    publication number or its versioned notice id, so this returns the raw
+    value; :func:`split_back_link` tells the two apart."""
+    el = root.find(".//efac:ContractModification/efbc:ChangedNoticeIdentifier", NS)
+    return el.text.strip() if el is not None and el.text else None
+
+
+def split_back_link(raw: str | None) -> tuple[str | None, str | None]:
+    """A back-link as ``(publication_number, notice_id)``, one of them set.
+
+    ``549184-2020`` → publication number of a (pre-eForms) award.
+    ``a64a67f4-…-01`` → the award's notice UUID with its version; the UUID
+    is what the graph indexes, so it is returned bare. Anything else is
+    kept as a publication number verbatim — provenance for a human, and a
+    value resolution will fail on loudly rather than silently.
+    """
+    if not raw:
+        return None, None
+    raw = raw.strip()
+    m = _UUID_VERSION.match(raw)
+    if m:
+        return None, m.group(1).lower()
+    return normalise_publication_number(raw), None

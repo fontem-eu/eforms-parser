@@ -141,6 +141,17 @@ def _modification_values(form) -> tuple[float | None, float | None, str | None]:
     return before, after, (cur_a or cur_t or cur_b)
 
 
+def _reference_number(root) -> str | None:
+    """S-form II.1.1 ``<REFERENCE_NUMBER>``: the file reference the authority
+    gave the procedure. The closest thing a pre-eForms notice has to a
+    procedure id; kept as ``legacy_procedure_id`` for querying, never used
+    as contract identity (decision of 2026-09-12: the publication number
+    is the key for legacy notices)."""
+    el = _first(root, "REFERENCE_NUMBER")
+    txt = _text(el)
+    return txt.strip() if txt and txt.strip() else None
+
+
 def _modifies_pubnum(root) -> str | None:
     """Publication-number of the notice this modification modifies.
 
@@ -151,6 +162,12 @@ def _modifies_pubnum(root) -> str | None:
     API. Returns None when no reference is published."""
     ref = _first(root, "REF_NOTICE")
     ojs = _text(_first(ref, "NO_DOC_OJS")) if ref is not None else None
+    return _ojs_to_pubnum(ojs)
+
+
+def _ojs_to_pubnum(ojs: str | None) -> str | None:
+    """``2017/S 147-305158`` (OJS reference) → ``305158-2017`` (TED
+    publication number), the form the graph indexes and back-links use."""
     match = re.match(r"\s*(\d{4})/S\s+\d+-(\d+)", ojs or "")
     return f"{match.group(2)}-{match.group(1)}" if match else None
 
@@ -408,6 +425,9 @@ def parse_ted_export(root: etree._Element) -> Notice:
     cpv = _first(form, "CPV_CODE")
     return Notice(
         notice_id=own_ojs or "",
+        # Legacy notices have no procedure id: the publication number is
+        # their contract identity (decision 2026-09-12).
+        publication_number=_ojs_to_pubnum(own_ojs),
         notice_type=notice_type,
         title=_text(_first(form, "TITLE")),
         cpv_main=cpv.get("CODE") if cpv is not None else None,
@@ -418,6 +438,7 @@ def parse_ted_export(root: etree._Element) -> Notice:
         currency=currency,
         modification_value_before=value_before,
         modifies_publication_number=_modifies_pubnum(root),
+        legacy_procedure_id=_reference_number(root),
         organizations=organizations,
         awards=awards,
     )

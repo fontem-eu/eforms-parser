@@ -1,0 +1,374 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><ContractAwardNotice xmlns="urn:oasis:names:specification:ubl:schema:xsd:ContractAwardNotice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ccts-cct="urn:un:unece:uncefact:data:specification:CoreComponentTypeSchemaModule:2" xmlns:efac="http://data.europa.eu/p27/eforms-ubl-extension-aggregate-components/1" xmlns:efbc="http://data.europa.eu/p27/eforms-ubl-extension-basic-components/1" xmlns:efext="http://data.europa.eu/p27/eforms-ubl-extensions/1" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" xmlns:qdt="urn:oasis:names:specification:ubl:schema:xsd:QualifiedDataTypes-2" xmlns:udt="urn:oasis:names:specification:bdndr:schema:xsd:UnqualifiedDataTypes-1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<ext:UBLExtensions>
+		<ext:UBLExtension>
+			<ext:ExtensionContent>
+				<efext:EformsExtension>
+					<efac:NoticeResult>
+						<cbc:TotalAmount currencyID="EUR">263774.00</cbc:TotalAmount>
+						<efac:LotResult>
+							<cbc:ID>RES-0001</cbc:ID>
+							<cbc:HigherTenderAmount currencyID="EUR">436107.63</cbc:HigherTenderAmount>
+							<cbc:LowerTenderAmount currencyID="EUR">313896.89</cbc:LowerTenderAmount>
+							<cbc:TenderResultCode listName="winner-selection-status">selec-w</cbc:TenderResultCode>
+							<efac:LotTender>
+								<cbc:ID schemeName="tender">TEN-0001</cbc:ID>
+							</efac:LotTender>
+							<efac:ReceivedSubmissionsStatistics>
+								<efbc:StatisticsCode listName="review-decision-type">tenders</efbc:StatisticsCode>
+								<efbc:StatisticsNumeric>4</efbc:StatisticsNumeric>
+							</efac:ReceivedSubmissionsStatistics>
+							<efac:ReceivedSubmissionsStatistics>
+								<efbc:StatisticsCode listName="review-decision-type">t-esubm</efbc:StatisticsCode>
+								<efbc:StatisticsNumeric>4</efbc:StatisticsNumeric>
+							</efac:ReceivedSubmissionsStatistics>
+							<efac:SettledContract>
+								<cbc:ID schemeName="contract">CON-0001</cbc:ID>
+							</efac:SettledContract>
+							<efac:StrategicProcurement>
+								<efbc:ApplicableLegalBasis listName="cvd-scope">false</efbc:ApplicableLegalBasis>
+							</efac:StrategicProcurement>
+							<efac:StrategicProcurement>
+								<efbc:ApplicableLegalBasis listName="eed-scope">false</efbc:ApplicableLegalBasis>
+							</efac:StrategicProcurement>
+							<efac:StrategicProcurement>
+								<efbc:ApplicableLegalBasis listName="ipi-scope">false</efbc:ApplicableLegalBasis>
+							</efac:StrategicProcurement>
+							<efac:TenderLot>
+								<cbc:ID schemeName="Lot">LOT-0001</cbc:ID>
+							</efac:TenderLot>
+						</efac:LotResult>
+						<efac:LotTender>
+							<cbc:ID schemeName="tender">TEN-0001</cbc:ID>
+							<efbc:TenderVariantIndicator>false</efbc:TenderVariantIndicator>
+							<cac:LegalMonetaryTotal>
+								<cbc:PayableAmount currencyID="EUR">263774.00</cbc:PayableAmount>
+							</cac:LegalMonetaryTotal>
+							<efac:SubcontractingTerm>
+								<efbc:TermCode listName="applicability">no</efbc:TermCode>
+							</efac:SubcontractingTerm>
+							<efac:TenderingParty>
+								<cbc:ID schemeName="tenderingparty">TPA-0001</cbc:ID>
+							</efac:TenderingParty>
+							<efac:TenderLot>
+								<cbc:ID schemeName="Lot">LOT-0001</cbc:ID>
+							</efac:TenderLot>
+							<efac:TenderReference>
+								<cbc:ID>2024_44_B_03.217.01_O</cbc:ID>
+							</efac:TenderReference>
+						</efac:LotTender>
+						<efac:SettledContract>
+							<cbc:ID schemeName="contract">CON-0001</cbc:ID>
+							<cbc:AwardDate>2024-06-04+02:00</cbc:AwardDate>
+							<cbc:IssueDate>2024-06-09+02:00</cbc:IssueDate>
+							<cbc:Title languageID="DEU">Schlosserarbeiten-Wiederherstellung Johannes-Sturmius-Gymnasiums</cbc:Title>
+							<efac:ContractReference>
+								<cbc:ID>2024_44_B_03.217.01_O</cbc:ID>
+							</efac:ContractReference>
+							<efac:LotTender>
+								<cbc:ID>TEN-0001</cbc:ID>
+							</efac:LotTender>
+						</efac:SettledContract>
+						<efac:TenderingParty>
+							<cbc:ID schemeName="tendering-party">TPA-0001</cbc:ID>
+							<efac:Tenderer>
+								<cbc:ID schemeName="organization">ORG-0003</cbc:ID>
+							</efac:Tenderer>
+						</efac:TenderingParty>
+					</efac:NoticeResult>
+					<efac:NoticeSubType>
+						<cbc:SubTypeCode listName="notice-subtype">29</cbc:SubTypeCode>
+					</efac:NoticeSubType>
+					<efac:Organizations>
+						<efac:Organization>
+							<efac:Company>
+								<cbc:WebsiteURI>http://www.schleiden.de</cbc:WebsiteURI>
+								<cac:PartyIdentification>
+									<cbc:ID>ORG-0001</cbc:ID>
+								</cac:PartyIdentification>
+								<cac:PartyName>
+									<cbc:Name languageID="DEU">Stadt Schleiden</cbc:Name>
+								</cac:PartyName>
+								<cac:PostalAddress>
+									<cbc:StreetName>Blankenheimer Straße 2</cbc:StreetName>
+									<cbc:CityName>Schleiden</cbc:CityName>
+									<cbc:PostalZone>53937</cbc:PostalZone>
+									<cbc:CountrySubentityCode listName="nuts-lvl3">DEA28</cbc:CountrySubentityCode>
+									<cac:Country>
+										<cbc:IdentificationCode listName="country">DEU</cbc:IdentificationCode>
+									</cac:Country>
+								</cac:PostalAddress>
+								<cac:PartyLegalEntity>
+									<cbc:CompanyID>053660036036-31001-86</cbc:CompanyID>
+								</cac:PartyLegalEntity>
+								<cac:Contact>
+									<cbc:Name>interne Vergabestelle</cbc:Name>
+									<cbc:Telephone>+49 2445-89411</cbc:Telephone>
+									<cbc:Telefax>+49 2445-89111</cbc:Telefax>
+									<cbc:ElectronicMail>vergabe@schleiden.de</cbc:ElectronicMail>
+								</cac:Contact>
+							</efac:Company>
+						</efac:Organization>
+						<efac:Organization>
+							<efac:Company>
+								<cbc:WebsiteURI>https://www.bezreg-koeln.nrw.de</cbc:WebsiteURI>
+								<cac:PartyIdentification>
+									<cbc:ID>ORG-0002</cbc:ID>
+								</cac:PartyIdentification>
+								<cac:PartyName>
+									<cbc:Name languageID="DEU">Vergabekammer Rheinland - Spruchkörper Köln</cbc:Name>
+								</cac:PartyName>
+								<cac:PostalAddress>
+									<cbc:StreetName>Zeughausstraße 2-10</cbc:StreetName>
+									<cbc:CityName>Köln</cbc:CityName>
+									<cbc:PostalZone>50667</cbc:PostalZone>
+									<cbc:CountrySubentityCode listName="nuts-lvl3">DEA23</cbc:CountrySubentityCode>
+									<cac:Country>
+										<cbc:IdentificationCode listName="country">DEU</cbc:IdentificationCode>
+									</cac:Country>
+								</cac:PostalAddress>
+								<cac:PartyLegalEntity>
+									<cbc:CompanyID>05315-03002-81</cbc:CompanyID>
+								</cac:PartyLegalEntity>
+								<cac:Contact>
+									<cbc:Telephone>+49 0221-147-3045</cbc:Telephone>
+									<cbc:Telefax>+49 0221-147-2889</cbc:Telefax>
+									<cbc:ElectronicMail>vkrhld-k@bezreg-koeln.nrw.de</cbc:ElectronicMail>
+								</cac:Contact>
+							</efac:Company>
+						</efac:Organization>
+						<efac:Organization>
+							<efbc:ListedOnRegulatedMarketIndicator>false</efbc:ListedOnRegulatedMarketIndicator>
+							<efac:UltimateBeneficialOwner>
+								<cbc:ID>UBO-0001</cbc:ID>
+							</efac:UltimateBeneficialOwner>
+							<efac:Company>
+								<efbc:CompanySizeCode listName="economic-operator-size">medium</efbc:CompanySizeCode>
+								<cac:PartyIdentification>
+									<cbc:ID>ORG-0003</cbc:ID>
+								</cac:PartyIdentification>
+								<cac:PartyName>
+									<cbc:Name languageID="DEU">Griesch GmbH &amp; Co. KG</cbc:Name>
+								</cac:PartyName>
+								<cac:PostalAddress>
+									<cbc:StreetName>Im Grabensmoor 9</cbc:StreetName>
+									<cbc:CityName>Bremerhaven</cbc:CityName>
+									<cbc:PostalZone>27578</cbc:PostalZone>
+									<cbc:CountrySubentityCode listName="nuts-lvl3">DE502</cbc:CountrySubentityCode>
+									<cac:Country>
+										<cbc:IdentificationCode listName="country">DEU</cbc:IdentificationCode>
+									</cac:Country>
+								</cac:PostalAddress>
+								<cac:PartyLegalEntity>
+									<cbc:CompanyID>DE298660537</cbc:CompanyID>
+								</cac:PartyLegalEntity>
+							</efac:Company>
+						</efac:Organization>
+						<efac:Organization><efac:Company><cac:PartyIdentification><cbc:ID schemeName="organization">ORG-0004</cbc:ID></cac:PartyIdentification><cac:PartyName><cbc:Name languageID="DEU">Datenservice Öffentlicher Einkauf (in Verantwortung des Beschaffungsamts des BMI)</cbc:Name></cac:PartyName><cac:PostalAddress><cbc:CityName>Bonn</cbc:CityName><cbc:PostalZone>53119</cbc:PostalZone><cbc:CountrySubentityCode listName="nuts">DEA22</cbc:CountrySubentityCode><cac:Country><cbc:IdentificationCode listName="country">DEU</cbc:IdentificationCode></cac:Country></cac:PostalAddress><cac:PartyLegalEntity><cbc:CompanyID schemeID="002">0204:994-DOEVD-83</cbc:CompanyID></cac:PartyLegalEntity><cac:Contact><cbc:Telephone>+49228996100</cbc:Telephone><cbc:ElectronicMail>noreply.esender_hub@bescha.bund.de</cbc:ElectronicMail></cac:Contact></efac:Company></efac:Organization><efac:UltimateBeneficialOwner>
+							<cbc:ID>UBO-0001</cbc:ID>
+							<efac:Nationality>
+								<cbc:NationalityID>DEU</cbc:NationalityID>
+							</efac:Nationality>
+						</efac:UltimateBeneficialOwner>
+					</efac:Organizations>
+				<efac:Publication><efbc:NoticePublicationID schemeName="ojs-notice-id">00201338-2026</efbc:NoticePublicationID><efbc:GazetteID schemeName="ojs-id">58/2026</efbc:GazetteID><efbc:PublicationDate>2026-03-24+01:00</efbc:PublicationDate></efac:Publication></efext:EformsExtension>
+			</ext:ExtensionContent>
+		</ext:UBLExtension>
+	</ext:UBLExtensions>
+	<cbc:UBLVersionID>2.3</cbc:UBLVersionID>
+	<cbc:CustomizationID>eforms-sdk-1.13</cbc:CustomizationID>
+	<cbc:ProfileID>eforms-sdk-1.13</cbc:ProfileID>
+	<cbc:ID schemeName="notice-id">a64a67f4-a562-4014-ae25-232da2f4fa1c</cbc:ID>
+	<cbc:ContractFolderID>5339cf92-c005-4943-86eb-04ece600ed0a</cbc:ContractFolderID>
+	<cbc:IssueDate>2026-03-23+01:00</cbc:IssueDate>
+	<cbc:IssueTime>11:32:50+01:00</cbc:IssueTime>
+	<cbc:VersionID>01</cbc:VersionID>
+	<cbc:RequestedPublicationDate>2026-03-23+01:00</cbc:RequestedPublicationDate>
+	<cbc:RegulatoryDomain>32014L0024</cbc:RegulatoryDomain>
+	<cbc:NoticeTypeCode listName="result">can-standard</cbc:NoticeTypeCode>
+	<cbc:NoticeLanguageCode listID="eu-official-language">DEU</cbc:NoticeLanguageCode>
+	<cac:ContractingParty>
+		<cac:ContractingPartyType>
+			<cbc:PartyTypeCode listName="buyer-legal-type">la</cbc:PartyTypeCode>
+		</cac:ContractingPartyType>
+		<cac:ContractingActivity>
+			<cbc:ActivityTypeCode listName="authority-activity">gen-pub</cbc:ActivityTypeCode>
+		</cac:ContractingActivity>
+		<cac:Party>
+			<cac:PartyIdentification>
+				<cbc:ID>ORG-0001</cbc:ID>
+			</cac:PartyIdentification>
+		<cac:ServiceProviderParty><cbc:ServiceTypeCode listName="organisation-role">ted-esen</cbc:ServiceTypeCode><cac:Party><cac:PartyIdentification><cbc:ID schemeName="organization">ORG-0004</cbc:ID></cac:PartyIdentification></cac:Party></cac:ServiceProviderParty></cac:Party>
+	</cac:ContractingParty>
+	<cac:TenderingTerms>
+		<ext:UBLExtensions>
+			<ext:UBLExtension>
+				<ext:ExtensionContent>
+					<efext:EformsExtension>
+						<efac:StrategicProcurement>
+							<efbc:ApplicableLegalBasis listName="cvd-scope">false</efbc:ApplicableLegalBasis>
+						</efac:StrategicProcurement>
+						<efac:StrategicProcurement>
+							<efbc:ApplicableLegalBasis listName="eed-scope">false</efbc:ApplicableLegalBasis>
+						</efac:StrategicProcurement>
+						<efac:StrategicProcurement>
+							<efbc:ApplicableLegalBasis listName="ipi-scope">false</efbc:ApplicableLegalBasis>
+						</efac:StrategicProcurement>
+					</efext:EformsExtension>
+				</ext:ExtensionContent>
+			</ext:UBLExtension>
+		</ext:UBLExtensions>
+		<cbc:FundingProgramCode listName="eu-funded">no-eu-funds</cbc:FundingProgramCode>
+		<cac:ProcurementLegislationDocumentReference>
+			<cbc:ID>vob-a-eu</cbc:ID>
+		</cac:ProcurementLegislationDocumentReference>
+		<cac:AppealTerms>
+			<cac:PresentationPeriod>
+				<cbc:Description languageID="DEU">Gemäß § 160 Abs. 3 Satz 1 GWB ist ein Nachprüfungsantrag unzulässig, soweit  - der Antragsteller den geltend gemachten Verstoß gegen Vergabevorschriften vor Einreichen des Nachprüfungsantrags erkannt und gegenüber dem Auftraggeber nicht innerhalb einer Frist von zehn Kalendertagen gerügt hat; der Ablauf der Frist nach § 134 Abs. 2 GWB bleibt unberührt,  - Verstöße gegen Vergabevorschriften, die aufgrund der Bekanntmachung erkennbar sind, nicht spätestens bis zum Ablauf der in der Bekanntmachung benannten Frist zur Bewerbung oder zur Angebotsabgabe gegenüber dem Auftraggeber gerügt werden,  - Verstöße gegen Vergabevorschriften, die erst in den Vergabeunterlagen erkennbar sind, nicht spätestens bis zum Ablauf der Frist zur Bewerbung oder zur Angebotsabgabe gegenüber dem Auftraggeber gerügt werden,  - mehr als 15 Kalendertage nach Eingang der Mitteilung des Auftraggebers, einer Rüge nicht abhelfen zu wollen, vergangen sind.   § 160 Abs. 3 Satz 1 GWB gilt nicht bei einem Antrag auf Feststellung der Unwirksamkeit des Vertrags nach § 135 Abs. 1 Nr. 2 GWB. § 134 Abs. 1 Satz 2 GWB bleibt unberührt.  Gemäß § 134 Abs. 1 GWB haben öffentliche Auftraggeber die Bieter, deren Angebote nicht berücksichtigt werden sollen, über den Namen des Unternehmens, dessen Angebot angenommen werden soll, über die Gründe der vorgesehenen Nichtberücksichtigung ihres Angebots und über den frühesten Zeitpunkt des Vertragsschlusses unverzüglich in Textform zu informieren. Dies gilt auch für Bewerber, denen keine Information über die Ablehnung ihrer Bewerbung zur Verfügung gestellt wurde, bevor die Mitteilung über die Zuschlagsentscheidung an die betroffenen Bieter ergangen ist.  Gemäß § 134 Abs. 2 GWB darf ein Vertrag erst zehn (10) Kalendertage nach Absendung (per Telefax, E-Mail oder elektronisch über die E-Vergabeplattform) der Information nach 134 Abs. 1 GWB geschlossen werden. Die Frist beginnt am Tag nach der Absendung der Information durch den Auftraggeber; auf den Tag des Zugangs beim betroffenen Bieter und Bewerber kommt es nicht an.  Gemäß § 135 Abs. 1 GWB ist ein öffentlicher Auftrag von Anfang an unwirksam, wenn der öffentliche Auftraggeber  1. gegen § 134 GWB verstoßen hat oder  2.den Auftrag ohne vorherige Veröffentlichung einer Bekanntmachung im Amtsblatt der Europäischen Union vergeben hat, ohne dass dies aufgrund Gesetzes gestattet ist,   und dieser Verstoß in einem Nachprüfungsverfahren festgestellt worden ist.  Gemäß § 135 Abs. 2 GWB kann die Unwirksamkeit nach § 135 Abs. 1 GWB nur festgestellt werden, wenn sie im Nachprüfungsverfahren innerhalb von 30 Kalendertagen nach der Information der betroffenen Bieter und Bewerber durch den öffentlichen Auftraggeber über den Abschluss des Vertrags, jedoch nicht später als sechs Monate nach Vertragsschluss geltend gemacht worden ist. Hat der Auftraggeber die Auftragsvergabe im Amtsblatt der Europäischen Union bekannt gemacht, endet die Frist zur Geltendmachung der Unwirksamkeit 30 Kalendertage nach Veröffentlichung der Bekanntmachung der Auftragsvergabe im Amtsblatt der Europäischen Union.</cbc:Description>
+			</cac:PresentationPeriod>
+			<cac:AppealReceiverParty>
+				<cac:PartyIdentification>
+					<cbc:ID schemeName="organization">ORG-0002</cbc:ID>
+				</cac:PartyIdentification>
+			</cac:AppealReceiverParty>
+		</cac:AppealTerms>
+	</cac:TenderingTerms>
+	<cac:TenderingProcess>
+		<cbc:ProcedureCode listName="procurement-procedure-type">open</cbc:ProcedureCode>
+		<cac:ProcessJustification>
+			<cbc:ProcessReasonCode listName="accelerated-procedure">false</cbc:ProcessReasonCode>
+		</cac:ProcessJustification>
+		<cac:AuctionTerms>
+			<cbc:AuctionConstraintIndicator>false</cbc:AuctionConstraintIndicator>
+		</cac:AuctionTerms>
+	</cac:TenderingProcess>
+	<cac:ProcurementProject>
+		<cbc:ID schemeName="internalID">2024_44_B_03.217.01_O</cbc:ID>
+		<cbc:Name languageID="DEU">Schlosserarbeiten-Wiederherstellung Johannes-Sturmius-Gymnasium</cbc:Name>
+		<cbc:Description languageID="DEU">Durchführung von Schlosserarbeiten für die Wiederherstellung am Johannes-Sturmius-Gymnasiums Schleiden</cbc:Description>
+		<cbc:ProcurementTypeCode listName="contract-nature">works</cbc:ProcurementTypeCode>
+		<cbc:Note languageID="DEU">#Bekanntmachungs-ID: CXQ1YYCYWE9#</cbc:Note>
+		<cac:MainCommodityClassification>
+			<cbc:ItemClassificationCode listName="cpv">45262680</cbc:ItemClassificationCode>
+		</cac:MainCommodityClassification>
+		<cac:AdditionalCommodityClassification>
+			<cbc:ItemClassificationCode listName="cpv">45262670</cbc:ItemClassificationCode>
+		</cac:AdditionalCommodityClassification>
+		<cac:RealizedLocation>
+			<cac:Address>
+				<cbc:StreetName>Blumenthaler Straße 7</cbc:StreetName>
+				<cbc:CityName>Schleiden</cbc:CityName>
+				<cbc:PostalZone>53937</cbc:PostalZone>
+				<cbc:CountrySubentityCode listName="nuts">DEA28</cbc:CountrySubentityCode>
+				<cac:Country>
+					<cbc:IdentificationCode listName="country">DEU</cbc:IdentificationCode>
+				</cac:Country>
+			</cac:Address>
+		</cac:RealizedLocation>
+	</cac:ProcurementProject>
+	<cac:ProcurementProjectLot>
+		<cbc:ID schemeName="Lot">LOT-0001</cbc:ID>
+		<cac:TenderingTerms>
+			<ext:UBLExtensions>
+				<ext:UBLExtension>
+					<ext:ExtensionContent>
+						<efext:EformsExtension>
+							<efac:StrategicProcurement>
+								<efbc:ApplicableLegalBasis listName="cvd-scope">false</efbc:ApplicableLegalBasis>
+							</efac:StrategicProcurement>
+							<efac:StrategicProcurement>
+								<efbc:ApplicableLegalBasis listName="eed-scope">false</efbc:ApplicableLegalBasis>
+							</efac:StrategicProcurement>
+							<efac:StrategicProcurement>
+								<efbc:ApplicableLegalBasis listName="ipi-scope">false</efbc:ApplicableLegalBasis>
+							</efac:StrategicProcurement>
+						</efext:EformsExtension>
+					</ext:ExtensionContent>
+				</ext:UBLExtension>
+			</ext:UBLExtensions>
+			<cbc:FundingProgramCode listName="eu-funded">no-eu-funds</cbc:FundingProgramCode>
+			<cac:ContractExecutionRequirement>
+				<cbc:ExecutionRequirementCode listName="fsr">false</cbc:ExecutionRequirementCode>
+			</cac:ContractExecutionRequirement>
+			<cac:AwardingTerms>
+				<cac:AwardingCriterion>
+					<cac:SubordinateAwardingCriterion>
+						<ext:UBLExtensions>
+							<ext:UBLExtension>
+								<ext:ExtensionContent>
+									<efext:EformsExtension>
+										<efac:AwardCriterionParameter>
+											<efbc:ParameterCode listName="number-fixed">fix-tot</efbc:ParameterCode>
+											<efbc:ParameterNumeric>100.0</efbc:ParameterNumeric>
+										</efac:AwardCriterionParameter>
+									</efext:EformsExtension>
+								</ext:ExtensionContent>
+							</ext:UBLExtension>
+						</ext:UBLExtensions>
+						<cbc:AwardingCriterionTypeCode listName="award-criterion-type">price</cbc:AwardingCriterionTypeCode>
+						<cbc:Name languageID="DEU">Angebotspreis</cbc:Name>
+						<cbc:Description languageID="DEU">Niedrigster Angebotspreis nach Leistungsverzeichnis</cbc:Description>
+					</cac:SubordinateAwardingCriterion>
+				</cac:AwardingCriterion>
+			</cac:AwardingTerms>
+			<cac:AdditionalInformationParty>
+				<cac:PartyIdentification>
+					<cbc:ID>ORG-0001</cbc:ID>
+				</cac:PartyIdentification>
+			</cac:AdditionalInformationParty>
+			<cac:AppealTerms>
+				<cac:PresentationPeriod>
+					<cbc:Description languageID="DEU">Gemäß § 160 Abs. 3 Satz 1 GWB ist ein Nachprüfungsantrag unzulässig, soweit  - der Antragsteller den geltend gemachten Verstoß gegen Vergabevorschriften vor Einreichen des Nachprüfungsantrags erkannt und gegenüber dem Auftraggeber nicht innerhalb einer Frist von zehn Kalendertagen gerügt hat; der Ablauf der Frist nach § 134 Abs. 2 GWB bleibt unberührt,  - Verstöße gegen Vergabevorschriften, die aufgrund der Bekanntmachung erkennbar sind, nicht spätestens bis zum Ablauf der in der Bekanntmachung benannten Frist zur Bewerbung oder zur Angebotsabgabe gegenüber dem Auftraggeber gerügt werden,  - Verstöße gegen Vergabevorschriften, die erst in den Vergabeunterlagen erkennbar sind, nicht spätestens bis zum Ablauf der Frist zur Bewerbung oder zur Angebotsabgabe gegenüber dem Auftraggeber gerügt werden,  - mehr als 15 Kalendertage nach Eingang der Mitteilung des Auftraggebers, einer Rüge nicht abhelfen zu wollen, vergangen sind.   § 160 Abs. 3 Satz 1 GWB gilt nicht bei einem Antrag auf Feststellung der Unwirksamkeit des Vertrags nach § 135 Abs. 1 Nr. 2 GWB. § 134 Abs. 1 Satz 2 GWB bleibt unberührt.  Gemäß § 134 Abs. 1 GWB haben öffentliche Auftraggeber die Bieter, deren Angebote nicht berücksichtigt werden sollen, über den Namen des Unternehmens, dessen Angebot angenommen werden soll, über die Gründe der vorgesehenen Nichtberücksichtigung ihres Angebots und über den frühesten Zeitpunkt des Vertragsschlusses unverzüglich in Textform zu informieren. Dies gilt auch für Bewerber, denen keine Information über die Ablehnung ihrer Bewerbung zur Verfügung gestellt wurde, bevor die Mitteilung über die Zuschlagsentscheidung an die betroffenen Bieter ergangen ist.  Gemäß § 134 Abs. 2 GWB darf ein Vertrag erst zehn (10) Kalendertage nach Absendung (per Telefax, E-Mail oder elektronisch über die E-Vergabeplattform) der Information nach 134 Abs. 1 GWB geschlossen werden. Die Frist beginnt am Tag nach der Absendung der Information durch den Auftraggeber; auf den Tag des Zugangs beim betroffenen Bieter und Bewerber kommt es nicht an.  Gemäß § 135 Abs. 1 GWB ist ein öffentlicher Auftrag von Anfang an unwirksam, wenn der öffentliche Auftraggeber  1. gegen § 134 GWB verstoßen hat oder  2.den Auftrag ohne vorherige Veröffentlichung einer Bekanntmachung im Amtsblatt der Europäischen Union vergeben hat, ohne dass dies aufgrund Gesetzes gestattet ist,   und dieser Verstoß in einem Nachprüfungsverfahren festgestellt worden ist.  Gemäß § 135 Abs. 2 GWB kann die Unwirksamkeit nach § 135 Abs. 1 GWB nur festgestellt werden, wenn sie im Nachprüfungsverfahren innerhalb von 30 Kalendertagen nach der Information der betroffenen Bieter und Bewerber durch den öffentlichen Auftraggeber über den Abschluss des Vertrags, jedoch nicht später als sechs Monate nach Vertragsschluss geltend gemacht worden ist. Hat der Auftraggeber die Auftragsvergabe im Amtsblatt der Europäischen Union bekannt gemacht, endet die Frist zur Geltendmachung der Unwirksamkeit 30 Kalendertage nach Veröffentlichung der Bekanntmachung der Auftragsvergabe im Amtsblatt der Europäischen Union.</cbc:Description>
+				</cac:PresentationPeriod>
+				<cac:AppealReceiverParty>
+					<cac:PartyIdentification>
+						<cbc:ID schemeName="organization">ORG-0002</cbc:ID>
+					</cac:PartyIdentification>
+				</cac:AppealReceiverParty>
+			</cac:AppealTerms>
+		</cac:TenderingTerms>
+		<cac:TenderingProcess>
+			<cbc:GovernmentAgreementConstraintIndicator>false</cbc:GovernmentAgreementConstraintIndicator>
+			<cac:AuctionTerms>
+				<cbc:AuctionConstraintIndicator>false</cbc:AuctionConstraintIndicator>
+			</cac:AuctionTerms>
+			<cac:ContractingSystem>
+				<cbc:ContractingSystemTypeCode listName="framework-agreement">none</cbc:ContractingSystemTypeCode>
+			</cac:ContractingSystem>
+			<cac:ContractingSystem>
+				<cbc:ContractingSystemTypeCode listName="dps-usage">none</cbc:ContractingSystemTypeCode>
+			</cac:ContractingSystem>
+		</cac:TenderingProcess>
+		<cac:ProcurementProject>
+			<cbc:ID schemeName="internalID">2024_44_B_03.217.01_O</cbc:ID>
+			<cbc:Name languageID="DEU">Schlosserarbeiten-Wiederherstellung Johannes-Sturmius-Gymnasium</cbc:Name>
+			<cbc:Description languageID="DEU">Bauleistung</cbc:Description>
+			<cbc:ProcurementTypeCode listName="contract-nature">works</cbc:ProcurementTypeCode>
+			<cac:ProcurementAdditionalType>
+				<cbc:ProcurementTypeCode listName="strategic-procurement">none</cbc:ProcurementTypeCode>
+			</cac:ProcurementAdditionalType>
+			<cac:MainCommodityClassification>
+				<cbc:ItemClassificationCode listName="cpv">45262680</cbc:ItemClassificationCode>
+			</cac:MainCommodityClassification>
+			<cac:AdditionalCommodityClassification>
+				<cbc:ItemClassificationCode listName="cpv">45262670</cbc:ItemClassificationCode>
+			</cac:AdditionalCommodityClassification>
+			<cac:RealizedLocation>
+				<cac:Address>
+					<cbc:StreetName>Blumenthaler Straße 7</cbc:StreetName>
+					<cbc:CityName>Schleiden</cbc:CityName>
+					<cbc:PostalZone>53937</cbc:PostalZone>
+					<cbc:CountrySubentityCode listName="nuts">DEA28</cbc:CountrySubentityCode>
+					<cac:Country>
+						<cbc:IdentificationCode listName="country">DEU</cbc:IdentificationCode>
+					</cac:Country>
+				</cac:Address>
+			</cac:RealizedLocation>
+			<cac:PlannedPeriod>
+				<cbc:DurationMeasure unitCode="WEEK">6</cbc:DurationMeasure>
+			</cac:PlannedPeriod>
+		</cac:ProcurementProject>
+	</cac:ProcurementProjectLot>
+	<cac:TenderResult>
+		<cbc:AwardDate>2000-01-01Z</cbc:AwardDate>
+	</cac:TenderResult>
+</ContractAwardNotice>
