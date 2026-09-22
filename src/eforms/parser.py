@@ -7,11 +7,15 @@ from .extractors.awards import (
     extract_awards,
     extract_lot_tender_counts,
     extract_total_value,
+    extract_total_value_raw,
 )
+from .extractors.framework import extract_framework_terms
 from .extractors.lots import extract_lots
 from .extractors.notice_metadata import (
+    extract_customization_id,
     extract_dispatch_date,
     extract_issue_date,
+    extract_notice_language,
     extract_publication_date,
     extract_notice_id,
     extract_notice_type,
@@ -19,6 +23,7 @@ from .extractors.notice_metadata import (
     extract_procedure_id,
     extract_notice_version,
     extract_changed_notice_identifier,
+    extract_tender_result_award_date_raw,
     split_back_link,
 )
 from .extractors.integrity import (
@@ -27,7 +32,7 @@ from .extractors.integrity import (
     extract_is_framework,
     extract_submission_deadline,
 )
-from .extractors.organizations import extract_organizations
+from .extractors.organizations import extract_buyer_org_id, extract_organizations
 from .extractors.procedure import (
     extract_cpv_main,
     extract_description,
@@ -36,7 +41,6 @@ from .extractors.procedure import (
     extract_title,
 )
 from .models import Notice
-from .namespaces import NS
 from .ted_export import looks_like_ted_export, parse_ted_export
 
 
@@ -54,15 +58,6 @@ def parse(xml_bytes: bytes) -> Notice:
     orgs = extract_organizations(root)
     total_value, currency = extract_total_value(root)
 
-    # Resolve buyer org ID
-    buyer_org_id = None
-    buyer_party = root.find(
-        ".//cac:ContractingParty/cac:Party/cac:PartyIdentification/cbc:ID",
-        NS,
-    )
-    if buyer_party is not None and buyer_party.text:
-        buyer_org_id = buyer_party.text.strip()
-
     awards = extract_awards(root)
     tender_counts = extract_lot_tender_counts(root)
     for award in awards:
@@ -70,6 +65,7 @@ def parse(xml_bytes: bytes) -> Notice:
     eu_funded, funding_programme = extract_eu_funding(root)
     back_link = extract_changed_notice_identifier(root)
     modifies_publication_number, modifies_notice_id = split_back_link(back_link)
+    framework = extract_framework_terms(root)
 
     return Notice(
         notice_id=extract_notice_id(root) or "",
@@ -86,9 +82,10 @@ def parse(xml_bytes: bytes) -> Notice:
         notice_version=extract_notice_version(root),
         modifies_publication_number=modifies_publication_number,
         modifies_notice_id=modifies_notice_id,
-        buyer_org_id=buyer_org_id,
+        buyer_org_id=extract_buyer_org_id(root),
         total_value=total_value,
         currency=currency,
+        total_value_raw=extract_total_value_raw(root),
         nuts=extract_nuts(root),
         organizations=orgs,
         lots=extract_lots(root),
@@ -98,4 +95,15 @@ def parse(xml_bytes: bytes) -> Notice:
         is_framework=extract_is_framework(root),
         eu_funded=eu_funded,
         funding_programme=funding_programme,
+        tender_result_award_date_raw=extract_tender_result_award_date_raw(root),
+        notice_language=extract_notice_language(root),
+        customization_id=extract_customization_id(root),
+        framework_max_value=framework.max_value,
+        framework_max_value_currency=framework.max_value_currency,
+        framework_max_value_raw=framework.max_value_raw,
+        framework_reestimated_value=framework.reestimated_value,
+        framework_reestimated_value_currency=framework.reestimated_value_currency,
+        framework_duration_months=framework.duration_months,
+        framework_duration_raw=framework.duration_raw,
+        framework_max_operators=framework.max_operators,
     )

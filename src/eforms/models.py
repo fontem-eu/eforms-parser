@@ -39,6 +39,10 @@ class Lot:
     cpv: str | None = None
     estimated_value: float | None = None
     currency: str | None = None
+    # Verbatim text ``estimated_value`` was parsed from
+    # (``cbc:EstimatedOverallContractAmount``): "4250000.00" and
+    # "4250000" are one float and two different statements about scale.
+    estimated_value_raw: str | None = None
 
 
 @dataclass
@@ -51,10 +55,11 @@ class Award:  # pylint: disable=too-many-instance-attributes
     agreements / ranked cascades) or when the winning TenderingParty is
     a consortium of joint bidders.
 
-    The 11 fields are a flat record of one eForms award row — each is a
+    The fields are a flat record of one eForms award row — each is a
     distinct published datum (identity, money, dates, rank, provenance
-    flags), not a candidate for grouping. Nesting them would force every
-    consumer through an artificial object hierarchy for no gain.
+    flags, and since 0.12 the verbatim text behind the cleaned money
+    and dates), not a candidate for grouping. Nesting them would force
+    every consumer through an artificial object hierarchy for no gain.
     """
 
     lot_id: str
@@ -89,15 +94,48 @@ class Award:  # pylint: disable=too-many-instance-attributes
     # MUST deduplicate by (tendering_party_id, lot_id) rather than summing
     # Awards, or consortium tenders inflate totals N-fold.
     is_consortium_member: bool = False
+    # ── Raw signals (0.12) ───────────────────────────────────────────
+    # The published text behind the cleaned fields above. The cleaned
+    # fields are unchanged; these exist so a downstream cleaning stage
+    # can see what the buyer actually wrote — placeholders, decimal
+    # presence — instead of only what we made of it (data-backlog Part
+    # 5, C4/C5: "never silently rewrite: keep the raw value").
+    #
+    # `cbc:AwardDate` of the SettledContract, verbatim: keeps the
+    # "2000-01-01" placeholder that `award_date` nulls (some eSender
+    # software writes it instead of a real date; which senders, and in
+    # which countries, is what a census over this field will show) and
+    # the timezone suffix TED appends. None for the same awards
+    # `award_date` is None for on structural grounds (losers).
+    award_date_raw: str | None = None
+    # `efac:TenderReference/cbc:ID` of the LotTender — the bidder's own
+    # reference for its tender, free text. "0.0" is a placeholder one
+    # gateway family writes here; it travels with the award-date one.
+    tender_reference: str | None = None
+    # `cbc:PayableAmount` text `value` was parsed from ("24474133" vs
+    # "24474133.00"). Kept even when it fails to parse (value None);
+    # None wherever `value` is withheld on purpose (legacy consortia).
+    value_raw: str | None = None
+    # ── Framework-agreement values of the award's LotResult ─────────
+    # BT-709 `efac:FrameworkAgreementValues/cbc:MaximumValueAmount`
+    # (this lot's framework ceiling) and BT-660
+    # `efbc:ReestimatedValueAmount` (its re-estimate at award time).
+    # Like `tenders_received` these are facts about the LOT, repeated on
+    # every award of it: never sum them across awards, and never into
+    # spend — a ceiling is capacity, not money paid.
+    framework_max_value: float | None = None
+    framework_max_value_currency: str | None = None
+    framework_reestimated_value: float | None = None
+    framework_reestimated_value_currency: str | None = None
 
 
 @dataclass
 class Notice:  # pylint: disable=too-many-instance-attributes
     """A fully parsed eForms notice with resolved org references.
 
-    The 15 fields mirror the eForms top-level notice schema 1:1 —
-    every field is a distinct semantic UBL element, not a candidate
-    for grouping. Splitting would force callers to learn an artificial
+    The fields mirror the eForms top-level notice schema 1:1 — every
+    field is a distinct semantic UBL element, not a candidate for
+    grouping. Splitting would force callers to learn an artificial
     intermediate object hierarchy.
     """
 
@@ -142,6 +180,47 @@ class Notice:  # pylint: disable=too-many-instance-attributes
     legacy_procedure_id: str | None = None
     # Place-of-performance NUTS (from ProcurementProject/RealizedLocation).
     nuts: str | None = None
+    # ── Raw signals + envelope (0.12) ────────────────────────────────
+    # Root `cac:TenderResult/cbc:AwardDate` verbatim, never cleaned.
+    # Every eForms award notice seen so far carries the "2000-01-01"
+    # placeholder here; the raw text is what lets a census tell the
+    # placeholder from a real date and from absence.
+    tender_result_award_date_raw: str | None = None
+    # `cbc:NoticeLanguageCode` verbatim: eForms three-letter ("POR"),
+    # legacy TED two-letter `LG_ORIG` ("PL"). Two code systems, one
+    # field — the value says which era wrote it.
+    notice_language: str | None = None
+    # `cbc:CustomizationID` — the eForms SDK version the notice was
+    # authored against ("eforms-sdk-1.14"); the only version marker a
+    # scale census can group gateways by. None on legacy TED.
+    customization_id: str | None = None
+    # Verbatim text `total_value` was parsed from (eForms
+    # `cbc:TotalAmount`; legacy `VAL_TOTAL_AFTER` / `VAL_TOTAL`).
+    total_value_raw: str | None = None
+    # ── Framework-agreement terms, procedure level (C6) ─────────────
+    # The ceiling: BT-271 `efbc:FrameworkMaximumAmount` on the
+    # procedure, else BT-118 `efbc:OverallMaximumFrameworkContractsAmount`
+    # on the NoticeResult, else the one LotResult's BT-709 when the
+    # notice has exactly one LotResult. Capacity, not spend — never into
+    # totals.
+    framework_max_value: float | None = None
+    framework_max_value_currency: str | None = None
+    framework_max_value_raw: str | None = None
+    # BT-1118 `efbc:OverallApproximateFrameworkContractsAmount` on the
+    # NoticeResult, else the one LotResult's BT-660 when the notice has
+    # exactly one. Multi-lot notices keep the per-lot figures on their
+    # awards and leave this None rather than summing.
+    framework_reestimated_value: float | None = None
+    framework_reestimated_value_currency: str | None = None
+    # BT-36 `cac:PlannedPeriod/cbc:DurationMeasure` of the first lot that
+    # sets up a framework agreement (eForms has no separate framework
+    # duration; the lot's is the framework's). `_months` only when the
+    # unit converts exactly (MONTH, YEAR); `_raw` whenever published, as
+    # "<n> <unitCode>" — so "6 WEEK" is kept and not rounded.
+    framework_duration_months: int | None = None
+    framework_duration_raw: str | None = None
+    # BT-113 `cac:FrameworkAgreement/cbc:MaximumOperatorQuantity`.
+    framework_max_operators: int | None = None
     organizations: dict[str, Organization] = field(default_factory=dict)
     lots: list[Lot] = field(default_factory=list)
     awards: list[Award] = field(default_factory=list)

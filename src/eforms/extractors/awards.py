@@ -7,6 +7,7 @@ from lxml import etree
 
 from ..models import Award
 from ..namespaces import NS
+from .money import read_amount
 from .notice_metadata import _clean_date
 
 _CBC_ID = "cbc:ID"
@@ -21,20 +22,29 @@ _RESULT_PATH = (
 )
 
 
-def extract_total_value(root: etree._Element) -> tuple[float | None, str | None]:
-    """Extract the notice-level total award value and currency."""
+def _total_amount(
+    root: etree._Element,
+) -> tuple[float | None, str | None, str | None]:
+    """(value, currency, raw) of the NoticeResult's ``cbc:TotalAmount``."""
     result_el = root.find(_RESULT_PATH, NS)
     if result_el is None:
+        return None, None, None
+    return read_amount(result_el.find("cbc:TotalAmount", NS))
+
+
+def extract_total_value(root: etree._Element) -> tuple[float | None, str | None]:
+    """Extract the notice-level total award value and currency."""
+    value, currency, _raw = _total_amount(root)
+    if value is None:
         return None, None
-    amount_el = result_el.find("cbc:TotalAmount", NS)
-    if amount_el is None or not amount_el.text:
-        return None, None
-    try:
-        value = float(amount_el.text.strip())
-    except ValueError:
-        return None, None
-    currency = amount_el.get("currencyID")
     return value, currency
+
+
+def extract_total_value_raw(root: etree._Element) -> str | None:
+    """Verbatim ``cbc:TotalAmount`` text behind :func:`extract_total_value`,
+    kept even when it does not parse — an unparseable total is still a
+    published fact a cleaning stage wants to see."""
+    return _total_amount(root)[2]
 
 
 def _lot_total_submissions(lot_result: etree._Element) -> int | None:
@@ -99,23 +109,50 @@ class _TenderInfo:
     tpa_ref: str | None = None
     value: float | None = None
     currency: str | None = None
+    # `cbc:PayableAmount` text `value` came from — the decimal presence
+    # a float cannot carry.
+    value_raw: str | None = None
     rank: int | None = None
+    # `efac:TenderReference/cbc:ID` — the bidder's own tender reference.
+    tender_reference: str | None = None
+
+
+@dataclass
+class _ContractDates:
+    """The dates of one SettledContract: cleaned award and conclusion
+    dates, plus the award date exactly as published (`award_raw` keeps
+    the "2000-01-01" placeholder `award` nulls)."""
+
+    award: str | None = None
+    award_raw: str | None = None
+    conclusion: str | None = None
+
+
+@dataclass
+class _FrameworkValues:
+    """BT-709 / BT-660 from one LotResult's `efac:FrameworkAgreementValues`."""
+
+    max_value: float | None = None
+    max_currency: str | None = None
+    reestimated_value: float | None = None
+    reestimated_currency: str | None = None
 
 
 @dataclass
 class _LotResultContext:
-    """The per-LotResult FALLBACK facts for the awards it produces.
+    """The per-LotResult facts for the awards it produces.
 
-    `is_winner` and the dates here apply only to notices that emit no
-    SettledContract→LotTender references at all; when those references
-    exist they override everything in this context (see
-    `_resolve_outcome`).
+    `is_winner` and `dates` are FALLBACK facts: they apply only to
+    notices that emit no SettledContract→LotTender references at all;
+    when those references exist they override both (see
+    `_resolve_outcome`). `framework` is a fact about the lot itself and
+    applies to every award of the LotResult.
     """
 
     lot_id: str = ""
     is_winner: bool = True
-    award_date: str | None = None
-    conclusion_date: str | None = None
+    dates: _ContractDates = field(default_factory=_ContractDates)
+    framework: _FrameworkValues = field(default_factory=_FrameworkValues)
 
 
 @dataclass
@@ -128,8 +165,7 @@ class _NoticeResultIndex:
     tpa_to_orgs: dict[str, list[str]] = field(default_factory=dict)
     tenders: dict[str, _TenderInfo] = field(default_factory=dict)
     # SettledContract ID → its dates (fallback path only).
-    award_dates: dict[str, str] = field(default_factory=dict)
-    conclusion_dates: dict[str, str] = field(default_factory=dict)
+    contract_dates: dict[str, _ContractDates] = field(default_factory=dict)
     # Every LotTender ID referenced by any SettledContract. When
     # non-empty this is the notice's authoritative winner set: Hungarian
     # (EKR) and Swedish eSender notices attach ALL received tenders to a
@@ -140,8 +176,7 @@ class _NoticeResultIndex:
     # Keyed per tender because one LotResult may reference many
     # SettledContracts (one per framework supplier), each with its own
     # dates; loser tenders belong to no contract and get none.
-    tender_award_dates: dict[str, str] = field(default_factory=dict)
-    tender_conclusion_dates: dict[str, str] = field(default_factory=dict)
+    tender_dates: dict[str, _ContractDates] = field(default_factory=dict)
 
 
 def _build_tpa_to_orgs(result_el: etree._Element) -> dict[str, list[str]]:
@@ -161,18 +196,6 @@ def _build_tpa_to_orgs(result_el: etree._Element) -> dict[str, list[str]]:
     return mapping
 
 
-def _tender_amount(lt: etree._Element) -> tuple[float | None, str | None]:
-    """(value, currency) from a LotTender's payable amount."""
-    val_el = lt.find("cac:LegalMonetaryTotal/cbc:PayableAmount", NS)
-    if val_el is None or not val_el.text:
-        return None, None
-    try:
-        value = float(val_el.text.strip())
-    except ValueError:
-        value = None
-    return value, val_el.get("currencyID")
-
-
 def _tender_rank(lt: etree._Element) -> int | None:
     """Cascade position from `cbc:RankCode`, or None when unranked."""
     rank = _ref_text(lt, "cbc:RankCode")
@@ -182,42 +205,48 @@ def _tender_rank(lt: etree._Element) -> int | None:
 
 
 def _build_tenders(result_el: etree._Element) -> dict[str, _TenderInfo]:
-    """LotTender ID → its bidder ref, price and rank."""
+    """LotTender ID → its bidder ref, price (number and text), rank and
+    the bidder's own tender reference."""
     tenders: dict[str, _TenderInfo] = {}
     for lt in result_el.findall("efac:LotTender", NS):
         lt_id = _ref_text(lt, _CBC_ID)
         if lt_id is None:
             continue
-        value, currency = _tender_amount(lt)
+        value, currency, value_raw = read_amount(
+            lt.find("cac:LegalMonetaryTotal/cbc:PayableAmount", NS))
         tenders[lt_id] = _TenderInfo(
             tpa_ref=_ref_text(lt, "efac:TenderingParty/cbc:ID"),
             value=value,
             currency=currency,
+            value_raw=value_raw,
             rank=_tender_rank(lt),
+            tender_reference=_ref_text(lt, "efac:TenderReference/cbc:ID"),
         )
     return tenders
 
 
-def _build_contract_dates(
-    result_el: etree._Element,
-) -> tuple[dict[str, str], dict[str, str]]:
-    """(SettledContract ID → award date, SettledContract ID → conclusion date)."""
-    award_dates: dict[str, str] = {}
-    conclusion_dates: dict[str, str] = {}
+def _build_contract_dates(result_el: etree._Element) -> dict[str, _ContractDates]:
+    """SettledContract ID → its dates.
+
+    `cbc:AwardDate` is kept twice: cleaned (sentinels such as the
+    "2000-01-01" placeholder become None, as everywhere else) and
+    verbatim, because the placeholder is itself the signal a scale
+    census keys on. `cbc:IssueDate` on the SettledContract is the
+    contract conclusion/signing date.
+    """
+    dates: dict[str, _ContractDates] = {}
     for sc in result_el.findall("efac:SettledContract", NS):
         sc_id = _ref_text(sc, _CBC_ID)
         if sc_id is None:
             continue
-        for path, target in (
-            ("cbc:AwardDate", award_dates),
-            # Contract conclusion/signing date (IssueDate on SettledContract)
-            ("cbc:IssueDate", conclusion_dates),
-        ):
-            raw = _ref_text(sc, path)
-            cleaned = _clean_date(raw) if raw else None
-            if cleaned:
-                target[sc_id] = cleaned
-    return award_dates, conclusion_dates
+        award_raw = _ref_text(sc, "cbc:AwardDate")
+        conclusion_raw = _ref_text(sc, "cbc:IssueDate")
+        dates[sc_id] = _ContractDates(
+            award=_clean_date(award_raw) if award_raw else None,
+            award_raw=award_raw,
+            conclusion=_clean_date(conclusion_raw) if conclusion_raw else None,
+        )
+    return dates
 
 
 def _build_settled_tender_refs(result_el: etree._Element) -> dict[str, list[str]]:
@@ -239,21 +268,36 @@ def _build_settled_tender_refs(result_el: etree._Element) -> dict[str, list[str]
 
 def _build_index(result_el: etree._Element) -> _NoticeResultIndex:
     """Resolve every lookup table the LotResult pass joins against."""
-    award_dates, conclusion_dates = _build_contract_dates(result_el)
+    contract_dates = _build_contract_dates(result_el)
     index = _NoticeResultIndex(
         tpa_to_orgs=_build_tpa_to_orgs(result_el),
         tenders=_build_tenders(result_el),
-        award_dates=award_dates,
-        conclusion_dates=conclusion_dates,
+        contract_dates=contract_dates,
     )
     for sc_id, tender_ids in _build_settled_tender_refs(result_el).items():
         for tender_id in tender_ids:
             index.settled_tender_ids.add(tender_id)
-            if sc_id in award_dates:
-                index.tender_award_dates[tender_id] = award_dates[sc_id]
-            if sc_id in conclusion_dates:
-                index.tender_conclusion_dates[tender_id] = conclusion_dates[sc_id]
+            if sc_id in contract_dates:
+                index.tender_dates[tender_id] = contract_dates[sc_id]
     return index
+
+
+def _lot_framework_values(lr: etree._Element) -> _FrameworkValues:
+    """BT-709 / BT-660 of the LotResult, or all-None when it has no
+    `efac:FrameworkAgreementValues` (a plain contract)."""
+    values = lr.find("efac:FrameworkAgreementValues", NS)
+    if values is None:
+        return _FrameworkValues()
+    max_value, max_currency, _ = read_amount(
+        values.find("cbc:MaximumValueAmount", NS))
+    reestimated, reestimated_currency, _ = read_amount(
+        values.find("efbc:ReestimatedValueAmount", NS))
+    return _FrameworkValues(
+        max_value=max_value,
+        max_currency=max_currency,
+        reestimated_value=reestimated,
+        reestimated_currency=reestimated_currency,
+    )
 
 
 def _lot_result_context(
@@ -271,15 +315,15 @@ def _lot_result_context(
     return _LotResultContext(
         lot_id=lot_id_el.text.strip() if lot_id_el.text else "",
         is_winner=code is None or code == _WINNER_CODE,
-        award_date=index.award_dates.get(sc_ref),
-        conclusion_date=index.conclusion_dates.get(sc_ref),
+        dates=index.contract_dates.get(sc_ref, _ContractDates()),
+        framework=_lot_framework_values(lr),
     )
 
 
 def _resolve_outcome(
     tender_id: str, ctx: _LotResultContext, index: _NoticeResultIndex
-) -> tuple[bool, str | None, str | None]:
-    """(is_winner, award_date, conclusion_date) for one referenced tender.
+) -> tuple[bool, _ContractDates]:
+    """(is_winner, contract dates) for one referenced tender.
 
     When the notice emits any SettledContract→LotTender reference, that
     reference set is the authoritative winner list: Hungarian (EKR) and
@@ -292,7 +336,7 @@ def _resolve_outcome(
 
     Contract dates attach only to the tender the settling contract
     actually references — losers are not party to any contract and get
-    None.
+    none (raw included).
 
     Fallback (no references anywhere in the notice — some countries never
     emit them): the LotResult's `cbc:TenderResultCode` rule and its
@@ -301,10 +345,9 @@ def _resolve_outcome(
     if index.settled_tender_ids:
         return (
             tender_id in index.settled_tender_ids,
-            index.tender_award_dates.get(tender_id),
-            index.tender_conclusion_dates.get(tender_id),
+            index.tender_dates.get(tender_id, _ContractDates()),
         )
-    return ctx.is_winner, ctx.award_date, ctx.conclusion_date
+    return ctx.is_winner, ctx.dates
 
 
 def _awards_for_tender(
@@ -324,8 +367,7 @@ def _awards_for_tender(
     info = index.tenders.get(tender_id)
     if info is None or info.tpa_ref is None:
         return []
-    is_winner, award_date, conclusion_date = _resolve_outcome(
-        tender_id, ctx, index)
+    is_winner, dates = _resolve_outcome(tender_id, ctx, index)
     orgs = index.tpa_to_orgs.get(info.tpa_ref, [])
     is_consortium = len(orgs) > 1
     return [
@@ -334,12 +376,19 @@ def _awards_for_tender(
             contractor_org_id=org_id,
             value=info.value,
             currency=info.currency,
-            award_date=award_date,
-            conclusion_date=conclusion_date,
+            award_date=dates.award,
+            conclusion_date=dates.conclusion,
             rank=info.rank,
             is_winner=is_winner,
             tendering_party_id=info.tpa_ref,
             is_consortium_member=is_consortium,
+            award_date_raw=dates.award_raw,
+            tender_reference=info.tender_reference,
+            value_raw=info.value_raw,
+            framework_max_value=ctx.framework.max_value,
+            framework_max_value_currency=ctx.framework.max_currency,
+            framework_reestimated_value=ctx.framework.reestimated_value,
+            framework_reestimated_value_currency=ctx.framework.reestimated_currency,
         )
         for org_id in orgs
     ]
@@ -369,9 +418,11 @@ def extract_awards(root: etree._Element) -> list[Award]:
 
     Real eForms structure (indirection chain):
       TenderingParty (TPA-0001) → Tenderer* → org IDs (ORG-0002…)
-      LotTender (TEN-0001) → TenderingParty ref (TPA-0001), value, rank
+      LotTender (TEN-0001) → TenderingParty ref (TPA-0001), value, rank,
+                             TenderReference
       SettledContract (CON-0001) → has AwardDate, refs LotTender*
-      LotResult → refs LotTender*, TenderLot, SettledContract*
+      LotResult → refs LotTender*, TenderLot, SettledContract*,
+                  FrameworkAgreementValues (BT-709 / BT-660)
 
     Both starred Tenderer/LotTender edges are one-to-MANY, so one Award
     is emitted per (LotResult × LotTender × Tenderer). Only suppliers TED

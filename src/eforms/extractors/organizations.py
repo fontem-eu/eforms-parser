@@ -87,3 +87,13 @@ def extract_organizations(
             nuts=nuts,
         )
     return result
+
+
+def extract_buyer_org_id(root: etree._Element) -> str | None:
+    """The contracting party's org id — the key into
+    :func:`extract_organizations`' result that names the buyer."""
+    el = root.find(
+        ".//cac:ContractingParty/cac:Party/cac:PartyIdentification/cbc:ID",
+        NS,
+    )
+    return el.text.strip() if el is not None and el.text else None

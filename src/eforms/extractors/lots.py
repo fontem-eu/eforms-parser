@@ -5,6 +5,7 @@ from lxml import etree
 
 from ..models import Lot
 from ..namespaces import NS
+from .money import read_amount
 
 
 def extract_lots(root: etree._Element) -> list[Lot]:
@@ -21,6 +22,7 @@ def extract_lots(root: etree._Element) -> list[Lot]:
         cpv = None
         value = None
         currency = None
+        value_raw = None
 
         if proj is not None:
             title_el = proj.find("cbc:Name", NS)
@@ -39,16 +41,10 @@ def extract_lots(root: etree._Element) -> list[Lot]:
                 if cpv_el is not None and cpv_el.text
                 else None
             )
-            val_el = proj.find(
+            value, currency, value_raw = read_amount(proj.find(
                 "cac:RequestedTenderTotal/cbc:EstimatedOverallContractAmount",
                 NS,
-            )
-            if val_el is not None and val_el.text:
-                try:
-                    value = float(val_el.text.strip())
-                except ValueError:
-                    pass
-                currency = val_el.get("currencyID")
+            ))
 
         lots.append(Lot(
             lot_id=lot_id,
@@ -56,5 +52,6 @@ def extract_lots(root: etree._Element) -> list[Lot]:
             cpv=cpv,
             estimated_value=value,
             currency=currency,
+            estimated_value_raw=value_raw,
         ))
     return lots

@@ -188,7 +188,9 @@ def test_parse_awards_single_winner_unchanged_by_fan_out():
     one Tenderer) must still yield exactly the same one Award after the
     extractor was taught to fan out across multi-tender / consortium
     results. This sample omits cbc:TenderResultCode and cbc:RankCode —
-    an unranked, implicitly-selected winner."""
+    an unranked, implicitly-selected winner. The raw fields added in 0.12
+    carry the published text behind `value` and `award_date`; everything
+    the notice does not publish stays None."""
     award = parse(MINIMAL_CAN).awards[0]
     assert award == Award(
         lot_id="LOT-0001",
@@ -202,6 +204,8 @@ def test_parse_awards_single_winner_unchanged_by_fan_out():
         is_winner=True,
         tendering_party_id="TPA-0001",
         is_consortium_member=False,
+        award_date_raw="2024-06-01",
+        value_raw="12500000",
     )
 
 
