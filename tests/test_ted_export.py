@@ -327,3 +327,36 @@ def test_legacy_export_populates_publication_date():
     notice = parse_ted_export(_root(MODIFICATION_F20))
     assert notice.publication_date == "2024-01-15"
     assert notice.publication_date == notice.issue_date
+
+
+def test_modification_total_keeps_its_published_text():
+    """`total_value_raw` is the text of whichever element `total_value`
+    came from — VAL_TOTAL_AFTER here — so a downstream scale rule can
+    see the decimals the float lost."""
+    notice = parse_ted_export(_root(MODIFICATION_F20))
+    assert notice.total_value == 2925919.96
+    assert notice.total_value_raw == "2925919.96"
+    assert notice.notice_language is None  # this inline F20 carries no LG_ORIG
+
+
+def test_modification_total_raw_follows_the_val_total_fallback():
+    xml = MODIFICATION_F20.replace(
+        b'<VAL_TOTAL_BEFORE CURRENCY="RON">2821075.49</VAL_TOTAL_BEFORE>', b""
+    ).replace(
+        b'<VAL_TOTAL_AFTER CURRENCY="RON">2925919.96</VAL_TOTAL_AFTER>',
+        b'<VAL_TOTAL CURRENCY="RON">3000000.00</VAL_TOTAL>',
+    )
+    notice = parse_ted_export(_root(xml))
+    assert notice.total_value == 3000000.00
+    assert notice.total_value_raw == "3000000.00"
+
+
+def test_missing_value_leaves_raw_none():
+    xml = MODIFICATION_F20.replace(
+        b'<VAL_TOTAL_BEFORE CURRENCY="RON">2821075.49</VAL_TOTAL_BEFORE>', b""
+    ).replace(
+        b'<VAL_TOTAL_AFTER CURRENCY="RON">2925919.96</VAL_TOTAL_AFTER>', b""
+    )
+    notice = parse_ted_export(_root(xml))
+    assert notice.total_value is None
+    assert notice.total_value_raw is None

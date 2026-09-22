@@ -20,6 +20,7 @@ matches on ``local-name()`` rather than a fixed prefix map.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 from lxml import etree
 
@@ -116,14 +117,37 @@ def _pick_form(root):
     return forms[0] if forms else root
 
 
-def _modification_values(form) -> tuple[float | None, float | None, str | None]:
+@dataclass
+class _Money:
+    """An amount as published: the number, its currency and the text the
+    number was parsed from (``raw`` keeps the decimal presence a float
+    cannot)."""
+
+    value: float | None = None
+    currency: str | None = None
+    raw: str | None = None
+
+
+@dataclass
+class _Totals:
+    """The notice-level money of a legacy form: the (possibly modified)
+    total, its currency, the text it was parsed from, and — on an F20 —
+    the pre-modification total."""
+
+    before: float | None = None
+    after: float | None = None
+    currency: str | None = None
+    after_raw: str | None = None
+
+
+def _modification_values(form) -> _Totals:
     """The before/after totals from an ``F20`` ``INFO_MODIFICATIONS`` block.
 
     Legacy modification notices self-contain the value change: the
     corruption signal is ``VAL_TOTAL_BEFORE`` -> ``VAL_TOTAL_AFTER``.
     ``VAL_TOTAL`` is a standalone total published when a notice carries
-    only one figure. Returns ``(before, after, currency)`` where ``after``
-    falls back to ``VAL_TOTAL``."""
+    only one figure; ``after`` falls back to it. ``after_raw`` is the
+    verbatim text of whichever element ``after`` came from."""
     info = _first(form, "INFO_MODIFICATIONS")
     scope = _first(info, "VALUES") if info is not None else None
     if scope is None:
@@ -131,14 +155,20 @@ def _modification_values(form) -> tuple[float | None, float | None, str | None]:
 
     def _one(tag):
         el = _first(scope, tag)
-        return _num(_text(el)), (el.get("CURRENCY") if el is not None else None)
+        txt = _text(el)
+        return _num(txt), (el.get("CURRENCY") if el is not None else None), txt
 
-    before, cur_b = _one("VAL_TOTAL_BEFORE")
-    after, cur_a = _one("VAL_TOTAL_AFTER")
-    total, cur_t = _one("VAL_TOTAL")
-    if after is None:
-        after = total
-    return before, after, (cur_a or cur_t or cur_b)
+    before, cur_b, _ = _one("VAL_TOTAL_BEFORE")
+    after, cur_a, raw_a = _one("VAL_TOTAL_AFTER")
+    total, cur_t, raw_t = _one("VAL_TOTAL")
+    if after is None and total is not None:
+        after, raw_a = total, raw_t
+    return _Totals(
+        before=before,
+        after=after,
+        currency=cur_a or cur_t or cur_b,
+        after_raw=raw_a,
+    )
 
 
 def _reference_number(root) -> str | None:
@@ -199,7 +229,7 @@ def _award_bidder_count(award_contract) -> int | None:
     return _int(_text(_first(award_contract, "NB_TENDERS_RECEIVED")))
 
 
-def _award_value(award_contract) -> tuple[float | None, str | None]:
+def _award_value(award_contract) -> _Money:
     """The award's own total from ``<AWARDED_CONTRACT><VALUES><VAL_TOTAL>``.
 
     Scoped to this AWARD_CONTRACT so the notice-level OBJECT_CONTRACT total
@@ -209,8 +239,9 @@ def _award_value(award_contract) -> tuple[float | None, str | None]:
     """
     el = _first(award_contract, "VAL_TOTAL")
     if el is None:
-        return None, None
-    return _num(_text(el)), el.get("CURRENCY")
+        return _Money()
+    txt = _text(el)
+    return _Money(value=_num(txt), currency=el.get("CURRENCY"), raw=txt)
 
 
 def _named_contractors(award_contract) -> list[tuple[object, str]]:
@@ -253,17 +284,19 @@ def _oldgen_award_date(award) -> str | None:
         return None
 
 
-def _oldgen_award_value(award) -> tuple[float | None, str | None]:
+def _oldgen_award_value(award) -> _Money:
     """The value actually awarded, from CONTRACT_VALUE_INFORMATION.
 
     Deliberately skips INITIAL_ESTIMATED_TOTAL_VALUE_CONTRACT: that is the
     pre-tender estimate, and booking it as the award would misstate the spend.
     ``@FMTVAL`` carries the machine-readable number (the element text is
-    space-grouped, e.g. "1 860 000").
+    space-grouped, e.g. "1 860 000"); ``raw`` is FMTVAL — the text the value
+    is parsed from — which TED normalises to two decimals, so decimal
+    presence carries no scale signal in this dialect.
     """
     info = _first(award, "CONTRACT_VALUE_INFORMATION")
     if info is None:
-        return None, None
+        return _Money()
     for tag in ("COSTS_RANGE_AND_CURRENCY_WITH_VAT_RATE",
                 "COSTS_RANGE_AND_CURRENCY"):
         block = _first(info, tag)
@@ -271,8 +304,10 @@ def _oldgen_award_value(award) -> tuple[float | None, str | None]:
             continue
         cost = _first(block, "VALUE_COST")
         if cost is not None:
-            return _num(cost.get("FMTVAL")), block.get("CURRENCY")
-    return None, None
+            fmtval = cost.get("FMTVAL")
+            return _Money(
+                value=_num(fmtval), currency=block.get("CURRENCY"), raw=fmtval or None)
+    return _Money()
 
 
 def _extract_awards_oldgen(form, notice_country, organizations) -> list[Award]:
@@ -280,7 +315,10 @@ def _extract_awards_oldgen(form, notice_country, organizations) -> list[Award]:
     awards: list[Award] = []
     for award in _local(form, "AWARD_OF_CONTRACT"):
         tenders = _int(_text(_first(award, "OFFERS_RECEIVED_NUMBER")))
-        value, currency = _oldgen_award_value(award)
+        money = _oldgen_award_value(award)
+        # CONTRACT_AWARD_DATE (V.1, the award decision) has always fed
+        # conclusion_date here; its ISO composition is also the only
+        # string form the DAY/MONTH/YEAR parts have, so it is the raw too.
         conclusion = _oldgen_award_date(award)
         named = [
             (op, _org_name(op))
@@ -301,10 +339,12 @@ def _extract_awards_oldgen(form, notice_country, organizations) -> list[Award]:
                 Award(
                     lot_id=org_id,
                     contractor_org_id=org_id,
-                    value=value if sole_winner else None,
-                    currency=currency if sole_winner else None,
+                    value=money.value if sole_winner else None,
+                    currency=money.currency if sole_winner else None,
                     conclusion_date=conclusion,
                     tenders_received=tenders,
+                    award_date_raw=conclusion,
+                    value_raw=money.raw if sole_winner else None,
                 )
             )
     return awards
@@ -358,7 +398,7 @@ def _extract_awards(form, notice_country, organizations) -> list[Award]:
             _text(_first(award_contract, "DATE_CONCLUSION_CONTRACT"))
         )
         tenders = _award_bidder_count(award_contract)
-        value, currency = _award_value(award_contract)
+        money = _award_value(award_contract)
         named = _named_contractors(award_contract)
         # A consortium wins ONE contract jointly but lists several CONTRACTORs,
         # and we emit one Award per contractor — attaching the full VAL_TOTAL to
@@ -379,10 +419,13 @@ def _extract_awards(form, notice_country, organizations) -> list[Award]:
                 Award(
                     lot_id=lot_no or org_id,
                     contractor_org_id=org_id,
-                    value=value if sole_winner else None,
-                    currency=currency if sole_winner else None,
+                    value=money.value if sole_winner else None,
+                    currency=money.currency if sole_winner else None,
                     conclusion_date=conclusion,
                     tenders_received=tenders,
+                    # The text `value` came from; withheld with it, or a
+                    # consortium's shared total would be booked N times.
+                    value_raw=money.raw if sole_winner else None,
                 )
             )
     # Older notices speak the AWARD_OF_CONTRACT dialect instead. A document
@@ -419,7 +462,7 @@ def parse_ted_export(root: etree._Element) -> Notice:
     if buyer_org_id is None:
         buyer_org_id = _extract_buyer_oldgen(
             form, notice_country, organizations)
-    value_before, total_value, currency = _modification_values(form)
+    totals = _modification_values(form)
     awards = _extract_awards(form, notice_country, organizations)
 
     cpv = _first(form, "CPV_CODE")
@@ -434,11 +477,15 @@ def parse_ted_export(root: etree._Element) -> Notice:
         issue_date=issue_date,
         publication_date=issue_date,
         buyer_org_id=buyer_org_id,
-        total_value=total_value,
-        currency=currency,
-        modification_value_before=value_before,
+        total_value=totals.after,
+        currency=totals.currency,
+        total_value_raw=totals.after_raw,
+        modification_value_before=totals.before,
         modifies_publication_number=_modifies_pubnum(root),
         legacy_procedure_id=_reference_number(root),
+        # LG_ORIG is the two-letter original language ("HU"); eForms'
+        # NoticeLanguageCode is three-letter ("HUN"). Verbatim either way.
+        notice_language=_text(_first(coded, "LG_ORIG")),
         organizations=organizations,
         awards=awards,
     )

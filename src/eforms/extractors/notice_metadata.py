@@ -152,3 +152,41 @@ def split_back_link(raw: str | None) -> tuple[str | None, str | None]:
     if m:
         return None, m.group(1).lower()
     return normalise_publication_number(raw), None
+
+
+# ---------------------------------------------------------------------------
+# Raw signals + envelope (0.12). Verbatim on purpose: the cleaning stage
+# downstream (data-backlog Part 5) keys on what the gateway wrote.
+# ---------------------------------------------------------------------------
+
+
+def _root_text(root: etree._Element, path: str) -> str | None:
+    """Stripped text of the first ``path`` match under root, None when
+    absent or blank."""
+    el = root.find(path, NS)
+    if el is None or not el.text or not el.text.strip():
+        return None
+    return el.text.strip()
+
+
+def extract_notice_language(root: etree._Element) -> str | None:
+    """``cbc:NoticeLanguageCode`` at root level — the language the notice
+    was authored in, verbatim (three-letter, e.g. ``POR``, ``DEU``)."""
+    return _root_text(root, "cbc:NoticeLanguageCode")
+
+
+def extract_customization_id(root: etree._Element) -> str | None:
+    """``cbc:CustomizationID`` at root level — the eForms SDK version the
+    notice was authored against (``eforms-sdk-1.14``). The only version
+    marker in the XML: a scale census groups gateways by it because
+    nothing else says how a sender wrote its amounts."""
+    return _root_text(root, "cbc:CustomizationID")
+
+
+def extract_tender_result_award_date_raw(root: etree._Element) -> str | None:
+    """Root ``cac:TenderResult/cbc:AwardDate`` verbatim — deliberately NOT
+    through :func:`_clean_date`. Every eForms award notice seen so far
+    carries the ``2000-01-01`` placeholder here (with TED's timezone
+    suffix, ``2000-01-01Z`` / ``2000-01-01+02:00``); the raw text is what
+    lets a census count it and tell it from absence."""
+    return _root_text(root, "cac:TenderResult/cbc:AwardDate")
