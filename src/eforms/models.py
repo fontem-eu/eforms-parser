@@ -102,14 +102,15 @@ class Award:  # pylint: disable=too-many-instance-attributes
     # 5, C4/C5: "never silently rewrite: keep the raw value").
     #
     # `cbc:AwardDate` of the SettledContract, verbatim: keeps the
-    # "2000-01-01" placeholder that `award_date` nulls (Portugal's
-    # gateway stamps it on every award since its eForms migration) and
+    # "2000-01-01" placeholder that `award_date` nulls (some eSender
+    # software writes it instead of a real date; which senders, and in
+    # which countries, is what a census over this field will show) and
     # the timezone suffix TED appends. None for the same awards
     # `award_date` is None for on structural grounds (losers).
     award_date_raw: str | None = None
     # `efac:TenderReference/cbc:ID` of the LotTender — the bidder's own
-    # reference for its tender, free text. "0.0" is the same gateway's
-    # placeholder and travels with the award-date watermark.
+    # reference for its tender, free text. "0.0" is a placeholder one
+    # gateway family writes here; it travels with the award-date one.
     tender_reference: str | None = None
     # `cbc:PayableAmount` text `value` was parsed from ("24474133" vs
     # "24474133.00"). Kept even when it fails to parse (value None);
