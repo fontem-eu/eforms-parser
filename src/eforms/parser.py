@@ -9,7 +9,10 @@ from .extractors.awards import (
     extract_total_value,
     extract_total_value_raw,
 )
-from .extractors.framework import extract_framework_terms
+from .extractors.framework import (
+    extract_framework_notice_reference,
+    extract_framework_terms,
+)
 from .extractors.lots import extract_lots
 from .extractors.notice_metadata import (
     extract_customization_id,
@@ -66,6 +69,7 @@ def parse(xml_bytes: bytes) -> Notice:
     back_link = extract_changed_notice_identifier(root)
     modifies_publication_number, modifies_notice_id = split_back_link(back_link)
     framework = extract_framework_terms(root)
+    framework_ref = extract_framework_notice_reference(root)
 
     return Notice(
         notice_id=extract_notice_id(root) or "",
@@ -106,4 +110,8 @@ def parse(xml_bytes: bytes) -> Notice:
         framework_duration_months=framework.duration_months,
         framework_duration_raw=framework.duration_raw,
         framework_max_operators=framework.max_operators,
+        framework_notice_id=framework_ref.notice_id,
+        framework_notice_id_raw=framework_ref.notice_id_raw,
+        framework_notice_id_source=framework_ref.notice_id_source,
+        framework_notice_id_conflict=framework_ref.notice_id_conflict,
     )

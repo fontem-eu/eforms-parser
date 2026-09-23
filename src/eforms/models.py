@@ -221,6 +221,34 @@ class Notice:  # pylint: disable=too-many-instance-attributes
     framework_duration_raw: str | None = None
     # BT-113 `cac:FrameworkAgreement/cbc:MaximumOperatorQuantity`.
     framework_max_operators: int | None = None
+    # ── Framework grouping key (0.13) ───────────────────────────────
+    # OPT-100 `efac:SettledContract/cac:NoticeDocumentReference/cbc:ID`,
+    # the "Framework Notice Identifier", normalised: the notice that
+    # established a framework agreement and every call-off under it carry
+    # the identical value, so it groups the notices of one framework.
+    # That is all it is. About 80% of the time it names a call for
+    # competition, a notice type this platform does not ingest, so it
+    # resolves to a :Contract we hold in roughly 13.6% of cases — a
+    # grouping key, never a pointer. Nothing here says which side of the
+    # framework a notice is on: `is_framework` is true of the
+    # establishing notice and of 344/351 confirmed call-offs alike.
+    # None means "not published", NOT "no framework": pre-2024 notices
+    # carry no such term at all (coverage across framework-flagged award
+    # notices is 28.8% for 2024, 89.4% for 2025, 98.3% for 2026).
+    framework_notice_id: str | None = None
+    # The published text, before normalisation ("00536632-2024"): the
+    # padding and the UUID version suffix are what a census of sender
+    # behaviour keys on, and they are gone from the field above.
+    framework_notice_id_raw: str | None = None
+    # Which term it came from: "opt-100", or "bt-125" for the weaker
+    # previous-notice fallback, which is read only on a framework
+    # procedure. None when neither is published.
+    framework_notice_id_source: str | None = None
+    # True when this notice's SettledContracts named more than one
+    # framework and the most common one won — a padding difference is not
+    # a disagreement, the count is on the normalised key. Rare; a loader
+    # grouping on the key wants to know the notice was not unanimous.
+    framework_notice_id_conflict: bool = False
     organizations: dict[str, Organization] = field(default_factory=dict)
     lots: list[Lot] = field(default_factory=list)
     awards: list[Award] = field(default_factory=list)
