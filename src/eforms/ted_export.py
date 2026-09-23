@@ -486,6 +486,12 @@ def parse_ted_export(root: etree._Element) -> Notice:
         # LG_ORIG is the two-letter original language ("HU"); eForms'
         # NoticeLanguageCode is three-letter ("HUN"). Verbatim either way.
         notice_language=_text(_first(coded, "LG_ORIG")),
+        # No framework fields are set here, on purpose. The S-forms have
+        # no framework grouping key at all: OPT-100 and BT-125 are eForms
+        # terms with no legacy equivalent, so framework_notice_id stays
+        # None on every pre-eForms notice. That is absence of a key, not
+        # absence of a framework — a consumer must show nothing rather
+        # than "no framework" for these.
         organizations=organizations,
         awards=awards,
     )
