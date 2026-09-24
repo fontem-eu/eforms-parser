@@ -84,6 +84,7 @@ confirmed call-offs do).
 """
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import dataclass
 from typing import Iterator
@@ -272,7 +273,23 @@ def normalise_framework_notice_id(raw: str | None) -> str | None:
     nothing.
     """
     publication_number, notice_id = split_back_link(raw)
-    return publication_number or notice_id
+    key = publication_number or notice_id
+    return None if _is_degenerate(key) else key
+
+
+# A reference whose number is all zeros is a buyer typing a placeholder
+# into the field, not a notice: "00000000-2026" normalises to "0-2026",
+# and prod already holds one (an ESP notice, 2026-09-24). A key is a
+# GROUPING key, so a degenerate one is worse than none — every notice
+# that publishes the same placeholder would be pulled into one
+# fabricated framework agreement, and the platform would show awards as
+# related that have nothing to do with each other.
+_DEGENERATE_NUMBER = re.compile(r"^0+(?:-\d{4})?$")
+
+
+def _is_degenerate(key: str | None) -> bool:
+    """True for a key that groups nothing: empty, or a zero placeholder."""
+    return not key or bool(_DEGENERATE_NUMBER.match(key))
 
 
 def _published_ids(root: etree._Element, path: str) -> list[str]:
