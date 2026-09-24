@@ -249,7 +249,9 @@ def test_legacy_ted_export_notices_have_no_grouping_key(fixture):
         (_UUID, _UUID),
         # neither form: verbatim beats a rewrite that groups with nothing
         ("FRAMEWORK/2024/017", "FRAMEWORK/2024/017"),
-        ("00000000-2025", "00000000-2025"),
+        # ... but an all-zero number groups everything that shares the
+        # placeholder into one fabricated framework, so it is no key.
+        ("00000000-2025", None),
         ("", None),
         (None, None),
     ],
@@ -335,3 +337,16 @@ def test_a_contract_without_a_reference_is_not_a_disagreement():
     )))
     assert notice.framework_notice_id == _PL_FRAMEWORK_KEY
     assert notice.framework_notice_id_conflict is False
+
+@pytest.mark.parametrize("raw", ["0-2026", "00000000-2026", "0", "000", "0-0000"])
+def test_a_zero_placeholder_is_not_a_key(raw):
+    """A key groups notices, so a degenerate one is worse than none:
+    every notice publishing the same placeholder would be pulled into
+    one fabricated framework agreement. Prod already held "0-2026" from
+    an ESP notice (found 2026-09-24 by the normalisation assertion)."""
+    assert normalise_framework_notice_id(raw) is None
+
+
+def test_a_real_reference_survives_the_degenerate_check():
+    assert normalise_framework_notice_id("00536632-2024") == "536632-2024"
+    assert normalise_framework_notice_id("0000123-2024") == "123-2024"
