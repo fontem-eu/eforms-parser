@@ -360,3 +360,30 @@ def test_missing_value_leaves_raw_none():
     notice = parse_ted_export(_root(xml))
     assert notice.total_value is None
     assert notice.total_value_raw is None
+
+
+# ── title language ──────────────────────────────────────────────────
+# Legacy titles are read from the picked form, whose LG is the language
+# they are written in; LG_ORIG is the fallback.
+
+def test_the_title_language_is_the_picked_forms():
+    assert parse_ted_export(_root(MODIFICATION_F20)).title_lang == "ro"
+
+
+def test_a_translated_form_gives_its_own_language_with_its_title():
+    xml = MODIFICATION_F20.replace(b'LG="RO" CATEGORY="ORIGINAL"',
+                                   b'LG="DE" CATEGORY="TRANSLATION"')
+    assert parse_ted_export(_root(xml)).title_lang == "de"
+
+
+def test_the_title_language_falls_back_to_lg_orig():
+    xml = (MODIFICATION_F20
+           .replace(b' LG="RO" CATEGORY="ORIGINAL"', b"")
+           .replace(b'<ISO_COUNTRY VALUE="RO"/>',
+                    b'<ISO_COUNTRY VALUE="RO"/><LG_ORIG>PL</LG_ORIG>'))
+    assert parse_ted_export(_root(xml)).title_lang == "pl"
+
+
+def test_a_real_legacy_notice_carries_its_title_language():
+    notice = parse(_fixture(CONSORTIUM))
+    assert notice.title_lang == "hu" and notice.notice_language == "HU"
