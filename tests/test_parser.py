@@ -492,3 +492,42 @@ def test_publication_date_strips_timezone_suffix():
     )
     assert notice.publication_date == "2024-06-03"
     assert "Z" not in notice.publication_date
+
+
+# ── title language ──────────────────────────────────────────────────
+# The language of the title TEXT, which translation downstream starts
+# from. Never inferred from the buyer's country.
+
+_TITLE = b"<cbc:Name>IT Infrastructure Modernisation</cbc:Name>"
+
+
+def _can_with_languages(title_lang: bytes | None, notice_lang: bytes | None) -> bytes:
+    xml = MINIMAL_CAN
+    if title_lang is not None:
+        xml = xml.replace(_TITLE, b'<cbc:Name languageID="' + title_lang + b'">'
+                          b"IT Infrastructure Modernisation</cbc:Name>", 1)
+    if notice_lang is not None:
+        xml = xml.replace(b"<cbc:ID>notice-uuid-001</cbc:ID>",
+                          b"<cbc:ID>notice-uuid-001</cbc:ID><cbc:NoticeLanguageCode>"
+                          + notice_lang + b"</cbc:NoticeLanguageCode>", 1)
+    return xml
+
+
+def test_the_title_language_is_the_title_elements_own():
+    """A multilingual notice's title can be in another language than the notice."""
+    assert parse(_can_with_languages(b"FRA", b"ENG")).title_lang == "fr"
+
+
+def test_the_title_language_falls_back_to_the_notice_language():
+    assert parse(_can_with_languages(None, b"DEU")).title_lang == "de"
+
+
+def test_no_recognisable_language_leaves_it_unknown():
+    assert parse(_can_with_languages(None, None)).title_lang is None
+    assert parse(_can_with_languages(b"XYZ", None)).title_lang is None
+
+
+def test_a_real_eforms_notice_carries_its_title_language():
+    notice = parse(
+        (_PD_FIXTURES / "eforms_can_consortium_3_tenderers_324264-2024.xml").read_bytes())
+    assert notice.title_lang == "it" and notice.notice_language == "ITA"

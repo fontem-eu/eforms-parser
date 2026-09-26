@@ -24,6 +24,7 @@ from dataclasses import dataclass
 
 from lxml import etree
 
+from .languages import to_iso639_1
 from .models import Award, LegalIdentifier, Notice, Organization
 
 # Legacy ``TD_DOCUMENT_TYPE/@CODE`` -> eForms-style notice-type slug.
@@ -138,6 +139,19 @@ class _Totals:
     after: float | None = None
     currency: str | None = None
     after_raw: str | None = None
+
+
+def _title_language(form, coded) -> str | None:
+    """ISO 639-1 language of the title read from ``form``.
+
+    That form's ``LG`` is the language its title is written in, whichever
+    form :func:`_pick_form` settled on; ``LG_ORIG`` covers an inlined form.
+    None when there is no title or neither code is recognisable.
+    """
+    if _text(_first(form, "TITLE")) is None:
+        return None
+    return (to_iso639_1(form.get("LG"))
+            or to_iso639_1(_text(_first(coded, "LG_ORIG"))))
 
 
 def _modification_values(form) -> _Totals:
@@ -473,6 +487,7 @@ def parse_ted_export(root: etree._Element) -> Notice:
         publication_number=_ojs_to_pubnum(own_ojs),
         notice_type=notice_type,
         title=_text(_first(form, "TITLE")),
+        title_lang=_title_language(form, coded),
         cpv_main=cpv.get("CODE") if cpv is not None else None,
         issue_date=issue_date,
         publication_date=issue_date,

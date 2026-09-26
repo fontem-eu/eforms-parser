@@ -143,6 +143,11 @@ class Notice:  # pylint: disable=too-many-instance-attributes
     publication_number: str | None = None
     notice_type: str | None = None
     title: str | None = None
+    # ISO 639-1 language of `title` ("it"), from the title element's own
+    # languageID on eForms and the original-language form's LG on legacy
+    # TED, falling back to the notice language. None when neither is
+    # recognisable: never guessed from the buyer's country.
+    title_lang: str | None = None
     description: str | None = None
     cpv_main: str | None = None
     procedure_type: str | None = None

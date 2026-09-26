@@ -42,6 +42,7 @@ from .extractors.procedure import (
     extract_nuts,
     extract_procedure_type,
     extract_title,
+    extract_title_language,
 )
 from .models import Notice
 from .ted_export import looks_like_ted_export, parse_ted_export
@@ -75,6 +76,7 @@ def parse(xml_bytes: bytes) -> Notice:
         notice_id=extract_notice_id(root) or "",
         notice_type=extract_notice_type(root),
         title=extract_title(root),
+        title_lang=extract_title_language(root),
         description=extract_description(root),
         cpv_main=extract_cpv_main(root),
         procedure_type=extract_procedure_type(root),
