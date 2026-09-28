@@ -40,8 +40,16 @@ def extract_publication_date(root: etree._Element) -> str | None:
     issued/dispatched the notice) and typically falls a day or so later.
     Consumers that mean "when did this become public" want this one.
     Absent from buyer-authored XML that TED has not published yet.
+
+    Only the one under ``efac:Publication``. ``efbc:PublicationDate`` is
+    also the element of ``efac:FieldsPrivacy`` (BT-198: when a withheld
+    field may be published), which sits EARLIER in the document on
+    every notice that withholds something. The first-match
+    ``.//efbc:PublicationDate`` this used to be read that instead: 5,104
+    eForms notices in prod dated 2027-2035 on 2026-09-28, e.g.
+    474034-2024 as 2034-07-15 instead of 2024-08-07.
     """
-    el = root.find(".//efbc:PublicationDate", NS)
+    el = root.find(".//efac:Publication/efbc:PublicationDate", NS)
     if el is not None and el.text:
         return _clean_date(el.text.strip())
     return None
