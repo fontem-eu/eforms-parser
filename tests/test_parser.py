@@ -477,6 +477,16 @@ def test_publication_date_is_distinct_from_issue_date(fixture, issue, published)
     assert notice.publication_date > notice.issue_date
 
 
+def test_publication_date_is_the_publication_block_not_a_privacy_date():
+    """474034-2024 withholds fields until 2034-07-15 (efac:FieldsPrivacy/
+    efbc:PublicationDate, three times, before the TED block). TED
+    published it on 2024-08-07, OJ S 153/2024."""
+    notice = parse((_PD_FIXTURES / "eforms_can_fields_privacy_it_474034-2024.xml")
+                   .read_bytes())
+    assert notice.publication_number == "474034-2024"
+    assert notice.publication_date == "2024-08-07"
+
+
 def test_publication_date_absent_when_ted_has_not_published():
     """Buyer-authored XML with no TED publication block yields None."""
     notice = parse(MINIMAL_CAN)
