@@ -48,21 +48,3 @@ jobs:
       - uses: ./.ci-actions/actions/sonar-scan
         with:
           sonar-token: ${{ secrets.SONAR_TOKEN }}
-      - name: Generate SBOM (resolved versions from installed env)
-        # Library — no Docker image, no Dependency-Track project to
-        # track CVEs against (it'd duplicate findings from any
-        # consumer that vendors it). Still generate the SBOM so we
-        # have a portable record per release; upload it to DT under
-        # the same "eforms-parser" project name as consumer SBOMs
-        # would reference, so a CVE on this lib propagates upward
-        # via DT's outdated-component metric.
-        run: cyclonedx-py environment --of json -o sbom.json
-      - name: Upload SBOM to Dependency-Track
-        run: |
-          curl -fsS -X POST "http://dependency-track.dependency-track.svc.cluster.local:8080/api/v1/bom" \
-            -H "X-Api-Key: ${{ secrets.DTRACK_API_KEY }}" \
-            -H "Content-Type: multipart/form-data" \
-            -F "projectName=eforms-parser" \
-            -F "projectVersion=v$(git rev-parse --short HEAD)" \
-            -F "autoCreate=true" \
-            -F "bom=@sbom.json"
