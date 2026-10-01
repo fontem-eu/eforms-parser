@@ -47,8 +47,9 @@ def extract_total_value_raw(root: etree._Element) -> str | None:
     return _total_amount(root)[2]
 
 
-def _lot_total_submissions(lot_result: etree._Element) -> int | None:
-    """The lot's received-tenders total, if the notice publishes one.
+def _lot_totals(lot_result: etree._Element) -> tuple[int, ...]:
+    """Every positive received-tenders total the LotResult publishes:
+    each "tenders" statistic, then each "t-esubm", in document order.
 
     Buyers publish the received-submission statistics under different
     codes of the same codelist: "tenders" is the plain total, but a
@@ -56,12 +57,13 @@ def _lot_total_submissions(lot_result: etree._Element) -> int | None:
     missing-count notices across FR/PL/PT/DE) carry only "t-esubm" —
     the electronic-submissions total. E-submission is mandatory for
     covered EU procurement, so when "tenders" is absent, "t-esubm" is
-    the total in practice. The plain total wins when both exist;
-    sub-group codes (t-sme, t-micro, ...) are never used as the total.
-    Zero on an awarded lot is contradictory (you can't award a tender
-    nobody bid on) — an incomplete-statistics artifact, skipped.
+    the total in practice. The plain total comes first when both exist;
+    sub-group codes (t-sme, t-micro, ...) are never totals. Zero on an
+    awarded lot is contradictory (you can't award a tender nobody bid
+    on) — an incomplete-statistics artifact, skipped.
     """
-    plain = electronic = None
+    plain: list[int] = []
+    electronic: list[int] = []
     for stat in lot_result.findall("efac:ReceivedSubmissionsStatistics", NS):
         code = (stat.findtext(
             "efbc:StatisticsCode", default="", namespaces=NS) or "").strip().lower()
@@ -69,29 +71,37 @@ def _lot_total_submissions(lot_result: etree._Element) -> int | None:
             "efbc:StatisticsNumeric", default="", namespaces=NS) or "").strip()
         if not num.isdigit() or int(num) <= 0:
             continue
-        if code == "tenders" and plain is None:
-            plain = int(num)
-        elif code == "t-esubm" and electronic is None:
-            electronic = int(num)
-    return plain if plain is not None else electronic
+        if code == "tenders":
+            plain.append(int(num))
+        elif code == "t-esubm":
+            electronic.append(int(num))
+    return tuple(plain + electronic)
 
 
-def extract_lot_tender_counts(root: etree._Element) -> dict[str, int]:
-    """lot_id -> number of tenders received, from each LotResult's
-    ReceivedSubmissionsStatistics. Drives the single-bidder indicator;
-    total resolution rules live in :func:`_lot_total_submissions`."""
-    counts: dict[str, int] = {}
+def _lot_results(root: etree._Element):
+    """(lot_id, LotResult) for every LotResult that names its lot."""
     result_el = root.find(_RESULT_PATH, NS)
     if result_el is None:
-        return counts
+        return
     for lot_result in result_el.findall("efac:LotResult", NS):
         lot_id_el = lot_result.find("efac:TenderLot/cbc:ID", NS)
         if lot_id_el is None or not lot_id_el.text:
             continue
-        total = _lot_total_submissions(lot_result)
-        if total is not None:
-            counts[lot_id_el.text.strip()] = total
-    return counts
+        yield lot_id_el.text.strip(), lot_result
+
+
+def extract_lot_submission_totals(root: etree._Element) -> dict[str, tuple[int, ...]]:
+    """lot_id -> every total its LotResult publishes (see
+    :func:`_lot_totals`); lots that publish none are absent."""
+    return {lot_id: totals for lot_id, lot_result in _lot_results(root)
+            if (totals := _lot_totals(lot_result))}
+
+
+def extract_lot_tender_counts(root: etree._Element) -> dict[str, int]:
+    """lot_id -> number of tenders received: the first published total
+    (see :func:`_lot_totals`). Drives the single-bidder indicator."""
+    return {lot_id: totals[0]
+            for lot_id, totals in extract_lot_submission_totals(root).items()}
 
 
 def _ref_text(parent: etree._Element, path: str) -> str | None:

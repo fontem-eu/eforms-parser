@@ -357,6 +357,7 @@ def _extract_awards_oldgen(form, notice_country, organizations) -> list[Award]:
                     currency=money.currency if sole_winner else None,
                     conclusion_date=conclusion,
                     tenders_received=tenders,
+                    submission_totals=(tenders,) if tenders and tenders > 0 else (),
                     award_date_raw=conclusion,
                     value_raw=money.raw if sole_winner else None,
                 )
@@ -437,6 +438,7 @@ def _extract_awards(form, notice_country, organizations) -> list[Award]:
                     currency=money.currency if sole_winner else None,
                     conclusion_date=conclusion,
                     tenders_received=tenders,
+                    submission_totals=(tenders,) if tenders and tenders > 0 else (),
                     # The text `value` came from; withheld with it, or a
                     # consortium's shared total would be booked N times.
                     value_raw=money.raw if sole_winner else None,
