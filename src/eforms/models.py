@@ -116,6 +116,16 @@ class Award:  # pylint: disable=too-many-instance-attributes
     # "24474133.00"). Kept even when it fails to parse (value None);
     # None wherever `value` is withheld on purpose (legacy consortia).
     value_raw: str | None = None
+    # Every positive lot TOTAL the notice publishes, in the order
+    # `tenders_received` chooses from: each `tenders` statistic, then
+    # each `t-esubm` (document order within a code; subgroup codes such
+    # as t-sme never). The first is `tenders_received`. Buyers type
+    # money, references and placeholders into this field (2,416,436 on
+    # 148462-2026, 999 across ~1,500 notices), and some publish a second,
+    # sane total beside the bad one (154038-2026: t-esubm 325350 and 3),
+    # so a cleaning stage that rejects the first can fall back to the
+    # next. Legacy dialects publish one figure: a one-element tuple.
+    submission_totals: tuple[int, ...] = ()
     # ── Framework-agreement values of the award's LotResult ─────────
     # BT-709 `efac:FrameworkAgreementValues/cbc:MaximumValueAmount`
     # (this lot's framework ceiling) and BT-660

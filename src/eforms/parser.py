@@ -5,7 +5,7 @@ from lxml import etree
 
 from .extractors.awards import (
     extract_awards,
-    extract_lot_tender_counts,
+    extract_lot_submission_totals,
     extract_total_value,
     extract_total_value_raw,
 )
@@ -63,9 +63,11 @@ def parse(xml_bytes: bytes) -> Notice:
     total_value, currency = extract_total_value(root)
 
     awards = extract_awards(root)
-    tender_counts = extract_lot_tender_counts(root)
+    lot_totals = extract_lot_submission_totals(root)
     for award in awards:
-        award.tenders_received = tender_counts.get(award.lot_id)
+        award.submission_totals = lot_totals.get(award.lot_id, ())
+        award.tenders_received = (
+            award.submission_totals[0] if award.submission_totals else None)
     eu_funded, funding_programme = extract_eu_funding(root)
     back_link = extract_changed_notice_identifier(root)
     modifies_publication_number, modifies_notice_id = split_back_link(back_link)
