@@ -233,6 +233,12 @@ def _extract_buyer(form, notice_country, organizations) -> str | None:
     return "buyer"
 
 
+def _one_total(tenders: int | None) -> tuple[int, ...]:
+    """The legacy dialects publish one bidder figure: a one-element
+    ``Award.submission_totals``, or none when it is absent or not positive."""
+    return (tenders,) if tenders and tenders > 0 else ()
+
+
 def _award_bidder_count(award_contract) -> int | None:
     """The lot's bidder count, published as ``<TENDERS><NB_TENDERS_RECEIVED>``.
 
@@ -357,7 +363,7 @@ def _extract_awards_oldgen(form, notice_country, organizations) -> list[Award]:
                     currency=money.currency if sole_winner else None,
                     conclusion_date=conclusion,
                     tenders_received=tenders,
-                    submission_totals=(tenders,) if tenders and tenders > 0 else (),
+                    submission_totals=_one_total(tenders),
                     award_date_raw=conclusion,
                     value_raw=money.raw if sole_winner else None,
                 )
@@ -438,7 +444,7 @@ def _extract_awards(form, notice_country, organizations) -> list[Award]:
                     currency=money.currency if sole_winner else None,
                     conclusion_date=conclusion,
                     tenders_received=tenders,
-                    submission_totals=(tenders,) if tenders and tenders > 0 else (),
+                    submission_totals=_one_total(tenders),
                     # The text `value` came from; withheld with it, or a
                     # consortium's shared total would be booked N times.
                     value_raw=money.raw if sole_winner else None,
